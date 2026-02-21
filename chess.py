@@ -3,11 +3,9 @@ Defines the main game loop for a local chess multiplayer game.
 """
 import pieces
 
-
 def make_board():
     rows = 8
     cols = 8
-
     board = [[0 for _ in range(cols)] for _ in range(rows)]
     return board
 
@@ -17,7 +15,6 @@ def chess_pos_to_coords_dict():
     Creates a dictionary  position in the form "<letter><number>" to matrix coordinates
     in the form (<row>, <col>)
     """
-
     # Create a list of possible positions
     pos_list = []
     letters = ("a", "b", "c", "d", "e", "f", "g", "h")
@@ -34,7 +31,6 @@ def chess_pos_to_coords_dict():
         col = letters.index(letter)
         row = 8 - int(pos[1])
         pos_dict[pos] = (row, col)
-
     return pos_dict
 
 
@@ -43,7 +39,7 @@ def get_move():
     Prompt the player for their move. This function calls itself recursively
     until a valid move is entered.
     """
-    move = input("Enter your move using chess postions e.g. \"a2 --> b3\" <starting position> <end position>: ")  
+    move = input("Enter your move using chess postions e.g. \"a2 --> b3\" <starting position> <end position>: ") 
     letters = ("a", "b", "c", "d", "e", "f", "g", "h")
 
     # Run checks to make sure the move is valid
@@ -63,7 +59,7 @@ def get_move():
     else:
         print(f"Your input was entered in the correct format: {a} --> {b}.")
         return (a, b)
-    
+   
 
 def print_current_board(board):
     print("-" * 33)
@@ -81,7 +77,6 @@ def print_current_board(board):
 
 
 def initialize_pieces():
-
     wk = pieces.King(7, 4, "white")
     wq = pieces.Queen(7, 3, "white")
     wr1 = pieces.Rook(7, 0, "white")
@@ -116,19 +111,19 @@ def initialize_pieces():
     bp8 = pieces.Pawn(1, 7, "black")
 
     pieces_arr = [wk, wq, wr1, wr2, wn1, wn2, wb1, wb2, wp1, wp2, wp3,
-                  wp4, wp5, wp6, wp7, wp8, bk, bq, br1, br2, bn1, bn2,
-                  bb1, bb2, bp1, bp2, bp3, bp4, bp5, bp6, bp7, bp8]
-    
+                 wp4, wp5, wp6, wp7, wp8, bk, bq, br1, br2, bn1, bn2,
+                 bb1, bb2, bp1, bp2, bp3, bp4, bp5, bp6, bp7, bp8]
+  
     return pieces_arr
 
 
 def place_pieces(board, pieces_arr):
-    # Create a dictionary to convert the string representation of the 
+    # Create a dictionary to convert the string representation of the
     # piece type to a chess symbol in Unicode
     sym_to_emoji_dict = {"wk": "\u2654", "wq": "\u2655", "wr": "\u2656",
-                         "wb": "\u2657", "wn": "\u2658", "wp": "\u2659",
-                         "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
-                         "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
+                        "wb": "\u2657", "wn": "\u2658", "wp": "\u2659",
+                        "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
+                        "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
 
     for piece in pieces_arr:
         if piece.alive:
@@ -139,6 +134,9 @@ def place_pieces(board, pieces_arr):
 
 
 def chess_pos_to_mtx_coords(chess_pos: str, pos_dict: dict):
+    """
+    Returns tuple.
+    """
     coords = pos_dict[chess_pos]
     return coords
 
@@ -153,18 +151,39 @@ def check_start_position(turn: str, start_coords: tuple, pieces_arr: list):
     # Check if any of the piece's current positions match with start_pos
     for piece in pieces_arr:
         if piece.alive:
-            if piece.posx == row and piece.posy == col:
+            if piece.row == row and piece.col == col:
                 if piece.color == turn:
                     return True
     return False
 
 
+def get_piece(start_coords, pieces_arr):
+    row = start_coords[0]
+    col = start_coords[1]
+
+    for piece in pieces_arr:
+        if row == piece.row and col == piece.col:
+            return piece
+    return False
+
+def check_end_position(end_coords: tuple, ):
+    pass
+
 def main():
     board = make_board()
     pieces_arr = initialize_pieces()
-    pos_dict = chess_pos_to_coords_dict()  
+    pos_dict = chess_pos_to_coords_dict() 
 
     turn = "white"
+       
+    # Stalemate by repetition
+
+    # Run testcases to see whether the player's king is in check,
+    # checkmate or stalemate
+
+    # Find whether the player's king is in check
+
+    # If the player's king is in check, find whether it is checkmate
 
     while True:
         place_pieces(board, pieces_arr)
@@ -174,7 +193,7 @@ def main():
             print("It is black's turn.")
 
         print_current_board(board)
-        
+      
         # Get user input (position to move from --> position to move to)
         start_pos, end_pos = get_move()
 
@@ -189,10 +208,18 @@ def main():
         """
         # Check if the square the player wants to move from contains
         # one of their pieces
-        if check_start_position(turn, start_pos, pieces_arr):
+        if check_start_position(turn, start_coords, pieces_arr):
             print("Valid starting position")
         else:
             print("Invalid start position")
+
+        # Check that the square that the player wants to move to is in
+        # the list of valid moves
+        # This list is not strictly valid, it contains the moves that do not 
+        # result in a collision
+        piece = get_piece(start_coords, pieces_arr)
+        moves = piece.get_valid_moves(board, pieces_arr)
+        print("Valid moves: " + str(moves))
 
         # Exit the loop when the game is over
 
