@@ -163,7 +163,7 @@ def get_piece(start_coords, pieces_arr):
     return False
 
 
-def move_piece(start_coords, end_coords, board):
+def move_piece(start_coords, end_coords, board, piece):
     start_row = start_coords[0]
     start_col = start_coords[1]
     end_row = end_coords[0]
@@ -172,6 +172,9 @@ def move_piece(start_coords, end_coords, board):
     temp = board[start_row][start_col]
     board[start_row][start_col] = 0
     board[end_row][end_col] = temp
+
+    piece.row = end_coords[0]
+    piece.col = end_coords[1]
 
 def check_end_position(end_coords: tuple, ):
     pass
@@ -187,6 +190,7 @@ def main():
     check = False
     checkmate = False
     stalemate = False
+    invalid_move = False
 
     turn = "white"
        
@@ -226,6 +230,11 @@ def main():
             print("Valid starting position")
         else:
             print("Invalid start position")
+            if turn == "white":
+                turn = "black"
+            else:
+                turn = "white"
+            break
 
         # Check that the square that the player wants to move to is in
         # the list of valid moves
@@ -236,7 +245,10 @@ def main():
         print("Valid moves: " + str(moves))
 
         # Move the piece if it passes all testcases
-        move_piece(start_coords, end_coords, board)
+        if end_coords in moves:
+            move_piece(start_coords, end_coords, board, piece)
+        else:
+            print("Invalid move")
         # Exit the loop when the game is over
 
         if checkmate or stalemate:

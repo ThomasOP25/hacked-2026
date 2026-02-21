@@ -122,7 +122,7 @@ class Pawn(Piece): #special case of polymorphism
         front_row = self.row + move_direction
         if 0 <= front_row < 8:
             if board[front_row][self.col] == 0:
-                valid_moves.append((front_row, self.row))
+                valid_moves.append((front_row, self.col))
                 
                 # 2. Double step forward (only if first step is clear AND it's on starting row)
                 starting_row = 6 if self.color == "white" else 1
