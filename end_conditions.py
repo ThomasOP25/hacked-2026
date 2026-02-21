@@ -14,7 +14,7 @@ def check_diags(board, cords):
     
     #Stores pieces found by diagonal beams, 0 if nothing found.
     #Forward Up diag.
-    while board[diagFU[0]][diagFU[1]] == king or board[diagFU[0]][diagFU[1]] == "0" or diagRU[0] <= 8 or diagRU[1] <= 8:
+    while board[diagFU[0]][diagFU[1]] == king or board[diagFU[0]][diagFU[1]] == "0" or diagRU[0] < 8 or diagRU[1] > 0:
         diagFU[0] += 1
         diagFU[1] -= 1
         proximal_pieceFU += 1
@@ -27,7 +27,7 @@ def check_diags(board, cords):
     
                         
     #Reverse Up diag.
-    while board[diagRU[0]][diagRU[1]] == king or board[diagRU[0]][diagRU[1]] == "0" or diagRU[0] <= 8 or diagRU[1] <= 8:
+    while board[diagRU[0]][diagRU[1]] == king or board[diagRU[0]][diagRU[1]] == "0" or diagRU[0] > 0 or diagRU[1] > 0:
         diagRU[0] -= 1
         diagRU[1] -= 1
         proximal_pieceRU += 1
@@ -38,7 +38,7 @@ def check_diags(board, cords):
         pieces_found.append(0)
         
     #Forward Down diag.
-    while board[diagFD[0]][diagFD[1]] == king or board[diagFD[0]][diagFD[1]] == "0" or diagFD[0] <= 8 or diagFD[1] <= 8:
+    while board[diagFD[0]][diagFD[1]] == king or board[diagFD[0]][diagFD[1]] == "0" or diagFD[0] < 8 or diagFD[1] < 8:
         diagFD[0] += 1
         diagFD[1] += 1
         proximal_pieceFD += 1
@@ -49,7 +49,7 @@ def check_diags(board, cords):
         pieces_found.append(0)
         
     #Reverse Down diag.
-    while board[diagRD[0]][diagRD[1]] == king or board[diagRD[0]][diagRD[1]] == "0" or diagRD[0] <= 8 or diagRD[1] <= 8:
+    while board[diagRD[0]][diagRD[1]] == king or board[diagRD[0]][diagRD[1]] == "0" or diagRD[0] > 0 or diagRD[1] < 8:
         diagRD[0] -= 1
         diagRD[1] += 1
         proximal_pieceRD += 1
@@ -73,52 +73,115 @@ def check_diags(board, cords):
     #Check after searching possible diags.
     return safe
 
-def check_straights(cord):
-    pass
-def check_slants(cord):
+def check_straights(board, cords):
+    safe = True
+    #Four possible straight beams from king.
+    Ubeam, Dbeam, Lbeam, Rbeam = cords
+    
+    king = board[cords[0]][cords[1]]
+    
+    #Pieces found in straight beams (0 if none)
+    pieces_found = []
+    
+    #Search in one beam's direction until a piece is found or until reaching a border. Store piece or 0 in list.
+    #Up beam
+    while board[Ubeam[0]][Ubeam[1]] == king or board[Ubeam[0]][Ubeam[1]] == "0" or Ubeam[0] > 0:
+        Ubeam[0] -= 1
+    
+    if board[Ubeam[0]][Ubeam[1]] != "0":
+        pieces_found.append(board[Ubeam[0]][Ubeam[1]])                 
+    else:
+        pieces_found.append(0)    
+    
+    #Down Beam
+    while board[Dbeam[0]][Dbeam[1]] == king or board[Dbeam[0]][Dbeam[1]] == "0" or Dbeam[0] < 8:
+        Dbeam[0] += 1
+        
+    if board[Dbeam[0]][Dbeam[1]] != "0":
+        pieces_found.append(board[Dbeam[0]][Dbeam[1]])                 
+    else:
+        pieces_found.append(0) 
+    
+    #Left Beam
+    while board[Lbeam[0]][Lbeam[1]] == king or board[Lbeam[0]][Lbeam[1]] == "0" or Lbeam[0] > 0:
+        Lbeam[1] -= 1    
+    
+    if board[Lbeam[0]][Lbeam[1]] != "0":
+        pieces_found.append(board[Lbeam[0]][Lbeam[1]])                 
+    else:
+        pieces_found.append(0) 
+    
+    #Right Beam
+    while board[Rbeam[0]][Rbeam[1]] == king or board[Rbeam[0]][Rbeam[1]] == "0" or Rbeam[0] < 8:
+        Rbeam[1] += 1    
+        
+    if board[Rbeam[0]][Rbeam[1]] != "0":
+        pieces_found.append(board[Rbeam[0]][Rbeam[1]])                 
+    else:
+        pieces_found.append(0)   
+    
+    #The only pieces that can take out the king in a straight line is the king, the queen, or the rook.
+    for piece in pieces_found:
+        if piece == "Rook" or piece == "Queen" or piece == "King" and king.color != piece.color:
+            safe = False
+    
+    return safe
+    
+    
+def check_slants(board, cords):
     safe = True
     
     #Left 4 Possible Knight pos
-    if cord[0] - 2 >= 0 and cord[1] - 1 >= 0:
-        if board[cord[0] - 2][cord[1] - 1] == "Knight":
+    if cords[0] - 2 >= 0 and cords[1] - 1 >= 0:
+        if board[cords[0] - 2][cords[1] - 1] == "Knight":
             safe = False
     
-    if cord[0] - 2 >= 0 and cord[1] + 1 < 8:
-        if board[cord[0] - 2][cord[1] + 1] == "Knight":
+    if cords[0] - 2 >= 0 and cords[1] + 1 < 8:
+        if board[cords[0] - 2][cords[1] + 1] == "Knight":
             safe = False    
     
-    if cord[0] - 1 >= 0 and cord[1] + 2 < 8:
-        if board[cord[0] - 1][cord[1] + 2] == "Knight":
+    if cords[0] - 1 >= 0 and cords[1] + 2 < 8:
+        if board[cords[0] - 1][cords[1] + 2] == "Knight":
             safe = False    
     
-    if cord[0] - 1 >= 0 and cord[1] - 2 < 8:
-        if board[cord[0] - 1][cord[1] - 2] == "Knight":
+    if cords[0] - 1 >= 0 and cords[1] - 2 < 8:
+        if board[cords[0] - 1][cords[1] - 2] == "Knight":
             safe = False    
     
     
     #Right 4 possible knight pos       
-    if cord[0] + 2 >= 0 and cord[1] - 1 >= 0:
-        if board[cord[0] + 2][cord[1] - 1] == "Knight":
+    if cords[0] + 2 >= 0 and cords[1] - 1 >= 0:
+        if board[cords[0] + 2][cords[1] - 1] == "Knight":
             safe = False
     
     
-    if cord[0] + 2 >= 0 and cord[1] + 1 < 8:
-        if board[cord[0] + 2][cord[1] + 1] == "Knight":
+    if cords[0] + 2 >= 0 and cords[1] + 1 < 8:
+        if board[cords[0] + 2][cords[1] + 1] == "Knight":
             safe = False  
     
-    if cord[0] + 1 >= 0 and cord[1] - 2 >= 0:
-        if board[cord[0] + 1][cord[1] - 2] == "Knight":
+    if cords[0] + 1 >= 0 and cords[1] - 2 >= 0:
+        if board[cords[0] + 1][cords[1] - 2] == "Knight":
             safe = False
                     
-    if cord[0] + 1 >= 0 and cord[1] + 2 < 8:
-        if board[cord[0] + 1][cord[1] + 2] == "Knight":
+    if cords[0] + 1 >= 0 and cords[1] + 2 < 8:
+        if board[cords[0] + 1][cords[1] + 2] == "Knight":
             safe = False 
     
     return safe
     
     
-def game_condition(king):
+def game_condition():
     #Pass in king object.
+    
+    diag_safe = check_diags(board, cords)
+    straight_safe = check_straights(board, cords)
+    slant_safe = check_slants(board, cords)
+    
+    #Safe king default.
     status = 1
+    
     #Check if king is in check (status = 0)
+    if diag_safe == False or straight_safe == False or slant_safe == False:
+        status = 0
     #Check if king is in checkmate (status = -1)
+    
