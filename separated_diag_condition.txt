@@ -1,0 +1,42 @@
+    if (
+    (proximal_pieceFU == 1 and pieces_found[0] == "king" and king.color == "Black" and piece.color != king.color)     
+    
+    or
+    
+    (proximal_pieceFU == 1 and pieces_found[0] == "pawn" or pieces_found[0] == "king" and king.color == "White" and piece.color != king.color) 
+    
+    or 
+    (proximal_pieceRU == 1 and pieces_found[1] == "king" and king.color == "Black" and piece.color != king.color)  
+    
+    or
+    
+    (proximal_pieceRU == 1 and pieces_found[1] == "pawn" or pieces_found[1] == "king" and king.color == "White" and piece.color != king.color)
+    
+    ) 
+    
+    or  
+    
+    (
+    (proximal_pieceFD == 1 and pieces_found[2] == "king" and king.color == "White" and piece.color != king.color) 
+    
+    or 
+    
+    (proximal_pieceFD == 1 and pieces_found[2] == "pawn" or pieces_found[2] == "king" and king.color == "Black" and piece.color != king.color)
+    
+    or
+     
+    (proximal_pieceRD == 1 and pieces_found[3] == "king" and king.color == "White" and piece.color != king.color)
+    
+    or
+    
+    (proximal_pieceRD == 1 and pieces_found[3] == "pawn" or pieces_found[3] == "king" and king.color == "Black" and piece.color != king.color)
+    ) 
+    
+    or 
+    
+    (piece == "bishop" and piece.color != king.color) 
+    
+    or 
+    
+    (piece == "queen" and piece.color != king.color):
+        safe = False
