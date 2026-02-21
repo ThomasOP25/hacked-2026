@@ -4,7 +4,7 @@ def check_diags(board, cords):
     '''
     safe = True
     diagFU, diagRU, diagFD, diagRD = cords #Forwards Up, Reverse Up, Forwards Down, Reverse Down diagonals
-    king = board[x][y] #might be reversed when testing
+    king = board[cords[0]][cords[1]] #might be reversed when testing
     
     #pieces found by the diagonal beams
     pieces_found = []
@@ -76,7 +76,47 @@ def check_diags(board, cords):
 def check_straights(cord):
     pass
 def check_slants(cord):
-    pass
+    safe = True
+    
+    #Left 4 Possible Knight pos
+    if cord[0] - 2 >= 0 and cord[1] - 1 >= 0:
+        if board[cord[0] - 2][cord[1] - 1] == "Knight":
+            safe = False
+    
+    if cord[0] - 2 >= 0 and cord[1] + 1 < 8:
+        if board[cord[0] - 2][cord[1] + 1] == "Knight":
+            safe = False    
+    
+    if cord[0] - 1 >= 0 and cord[1] + 2 < 8:
+        if board[cord[0] - 1][cord[1] + 2] == "Knight":
+            safe = False    
+    
+    if cord[0] - 1 >= 0 and cord[1] - 2 < 8:
+        if board[cord[0] - 1][cord[1] - 2] == "Knight":
+            safe = False    
+    
+    
+    #Right 4 possible knight pos       
+    if cord[0] + 2 >= 0 and cord[1] - 1 >= 0:
+        if board[cord[0] + 2][cord[1] - 1] == "Knight":
+            safe = False
+    
+    
+    if cord[0] + 2 >= 0 and cord[1] + 1 < 8:
+        if board[cord[0] + 2][cord[1] + 1] == "Knight":
+            safe = False  
+    
+    if cord[0] + 1 >= 0 and cord[1] - 2 >= 0:
+        if board[cord[0] + 1][cord[1] - 2] == "Knight":
+            safe = False
+                    
+    if cord[0] + 1 >= 0 and cord[1] + 2 < 8:
+        if board[cord[0] + 1][cord[1] + 2] == "Knight":
+            safe = False 
+    
+    return safe
+    
+    
 def game_condition(king):
     #Pass in king object.
     status = 1
