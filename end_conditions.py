@@ -8,8 +8,8 @@ def check_diags(board, cords):
         for x in range(8):
             for y in range(8):
                 #Forward Up diag.
-                while board[diagFU[0]][diagFU[1]] != king or board[diagFU[0]][diagFU[1]] != "0":
-                    diagFU[0] += 1
+                while board[diagFU[0]][diagFU[1]] != king or board[diagFU[0]][diagFU[1]] != "0" or diagFU[0] <= 8 or diagFU[1] <= 8:
+                    diagFU[0] += 1 
                     diagFU[1] -= 1
                         
                 #Reverse Up diag.
