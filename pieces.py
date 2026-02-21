@@ -6,6 +6,7 @@ class Piece:
         self.color = color
         self.directions = []
         self.max_step = 0
+        self.alive = True
 
     def get_valid_moves(self, board):
         valid_moves = []
@@ -39,7 +40,7 @@ class Piece:
         
     def __str__(self):
         # __class__.__name__ automatically gets the name of the piece
-        return f"This is a {self.__class__.__name__.lower()} with position {self.posx}{self.posy}"
+        return f"{self.color[0].lower()}{self.__class__.__name__.lower()[0]}"
 
 #########Below are children of Piece:###########
 
@@ -71,6 +72,10 @@ class Knight(Piece):
             (1, -2), (1, 2), (2, -1), (2, 1)
         ]
         self.max_steps = 1
+    
+    def __str__(self):
+        # __class__.__name__ automatically gets the name of the piece
+        return f"{self.color[0].lower()}{self.__class__.__name__.lower()[1]}"
 
 
 class King(Piece):
