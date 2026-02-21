@@ -1,8 +1,8 @@
 class Piece:
     # parent class: handles similarities in all pieces
-    def __init__(self, posx, posy, color):
-        self.posx = posx
-        self.posy = posy
+    def __init__(self, row, col, color):
+        self.row = row
+        self.col = col
         self.color = color
         self.directions = []
         self.max_step = 0
@@ -14,9 +14,9 @@ class Piece:
             # each piece can move a maximum number of steps in each direction
             for step in range(1, self.max_steps + 1):
                 # calculate the each possible row
-                end_row = self.posx + (direction[0] * step)
+                end_row = self.row + (direction[0] * step)
                 # calculate the each possible column
-                end_col = self.posy + (direction[1] * step)
+                end_col = self.col + (direction[1] * step)
                 
                 # check if out of grid
                 if not (0 <= end_row < 8 and 0 <= end_col < 8):
@@ -45,8 +45,8 @@ class Piece:
 #########Below are children of Piece:###########
 
 class Rook(Piece):
-    def __init__(self, posx, posy, color):
-        super().__init__(posx, posy, color)
+    def __init__(self, row, col, color):
+        super().__init__(row, col, color)
 
         # vectors of (row_change, col_change) -> Down, Up, Right, Left
         self.directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -79,8 +79,8 @@ class Knight(Piece):
 
 
 class King(Piece):
-    def __init__(self, posx, posy, color):
-        super().__init__(posx, posy, color)
+    def __init__(self, row, col, color):
+        super().__init__(row, col, color)
         
         # vectors of (row_change, col_change) ->
         self.directions = [
@@ -91,8 +91,8 @@ class King(Piece):
 
 
 class Queen(Piece):
-    def __init__(self, posx, posy, color):
-        super().__init__(posx, posy, color)
+    def __init__(self, row, col, color):
+        super().__init__(row, col, color)
         
         # vectors of (row_change, col_change) ->
         self.directions = [
@@ -103,8 +103,8 @@ class Queen(Piece):
 
         
 class Pawn(Piece): #special case of polymorphism
-    def __init__(self, posx, posy, color):
-        super().__init__(posx, posy, color)
+    def __init__(self, row, col, color):
+        super().__init__(row, col, color)
 
     def get_valid_moves(self, board):
         valid_moves = []
@@ -114,20 +114,20 @@ class Pawn(Piece): #special case of polymorphism
         move_direction = -1 if self.color == "White" else 1
         
         # 1. Single step forward
-        front_row = self.posx + move_direction
+        front_row = self.row + move_direction
         if 0 <= front_row < 8:
-            if board[front_row][self.posy] == 0:
-                valid_moves.append((front_row, self.posy))
+            if board[front_row][self.col] == 0:
+                valid_moves.append((front_row, self.row))
                 
                 # 2. Double step forward (only if first step is clear AND it's on starting row)
                 starting_row = 6 if self.color == "White" else 1
-                if self.posx == starting_row:
-                    double_row = self.posx + (move_direction * 2)
-                    if board[double_row][self.posy] == 0:
-                        valid_moves.append((double_row, self.posy))
+                if self.row == starting_row:
+                    double_row = self.row + (move_direction * 2)
+                    if board[double_row][self.col] == 0:
+                        valid_moves.append((double_row, self.col))
         
         # 3. Diagonal Captures
-        capture_cols = [self.posy - 1, self.posy + 1]
+        capture_cols = [self.col - 1, self.col + 1]
         for col in capture_cols:
             if 0 <= front_row < 8 and 0 <= col < 8:
                 target_square = board[front_row][col]

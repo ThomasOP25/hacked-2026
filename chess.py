@@ -73,6 +73,7 @@ def print_current_board(board):
             square = str(board[i][j])
             print(square.center(3), end="")
             print("|", end="")
+        j += 1
         square = str(board[i][j])
         print(square.center(3), end="")
         print("|")
@@ -131,8 +132,8 @@ def place_pieces(board, pieces_arr):
 
     for piece in pieces_arr:
         if piece.alive:
-            row = piece.posx
-            col = piece.posy
+            row = piece.row
+            col = piece.col
             piece_type = sym_to_emoji_dict[str(piece)]
             board[row][col] = piece_type
 
@@ -142,17 +143,21 @@ def chess_pos_to_mtx_coords(chess_pos: str, pos_dict: dict):
     return coords
 
 
-def check_start_position(board: list, turn: str, start_pos: tuple, pieces_arr: list):
-    row = start_pos[0]
-    col = start_pos[1]
+def check_start_position(turn: str, start_coords: tuple, pieces_arr: list):
+    """
+    Ensures that the player's starting position contains one of their pieces.
+    """
+    row = start_coords[0]
+    col = start_coords[1]
 
     # Check if any of the piece's current positions match with start_pos
     for piece in pieces_arr:
         if piece.alive:
-            if piece.posx == col and piece.posy == row:
+            if piece.posx == row and piece.posy == col:
                 if piece.color == turn:
                     return True
     return False
+
 
 def main():
     board = make_board()
@@ -183,7 +188,11 @@ def main():
         Run testcases to check if move is valid
         """
         # Check if the square the player wants to move from contains
-        # one of their pieces 
+        # one of their pieces
+        if check_start_position(turn, start_pos, pieces_arr):
+            print("Valid starting position")
+        else:
+            print("Invalid start position")
 
         # Exit the loop when the game is over
 
