@@ -117,14 +117,10 @@ def initialize_pieces():
     return pieces_arr
 
 
-def place_pieces(board, pieces_arr):
+def place_pieces(board, pieces_arr, sym_to_emoji_dict):
     # Create a dictionary to convert the string representation of the
     # piece type to a chess symbol in Unicode
-    sym_to_emoji_dict = {"wk": "\u2654", "wq": "\u2655", "wr": "\u2656",
-                        "wb": "\u2657", "wn": "\u2658", "wp": "\u2659",
-                        "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
-                        "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
-
+  
     for piece in pieces_arr:
         if piece.alive:
             row = piece.row
@@ -166,13 +162,31 @@ def get_piece(start_coords, pieces_arr):
             return piece
     return False
 
+
+def move_piece(start_coords, end_coords, board):
+    start_row = start_coords[0]
+    start_col = start_coords[1]
+    end_row = end_coords[0]
+    end_col = end_coords[1]
+
+    temp = board[start_row][start_col]
+    board[start_row][start_col] = 0
+    board[end_row][end_col] = temp
+
 def check_end_position(end_coords: tuple, ):
     pass
 
 def main():
+    sym_to_emoji_dict = {"wk": "\u2654", "wq": "\u2655", "wr": "\u2656",
+                        "wb": "\u2657", "wn": "\u2658", "wp": "\u2659",
+                        "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
+                        "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
     board = make_board()
     pieces_arr = initialize_pieces()
     pos_dict = chess_pos_to_coords_dict() 
+    check = False
+    checkmate = False
+    stalemate = False
 
     turn = "white"
        
@@ -186,7 +200,7 @@ def main():
     # If the player's king is in check, find whether it is checkmate
 
     while True:
-        place_pieces(board, pieces_arr)
+        place_pieces(board, pieces_arr, sym_to_emoji_dict)
         if turn == "white":
             print("It is white's turn.")
         elif turn == "black":
@@ -221,8 +235,11 @@ def main():
         moves = piece.get_valid_moves(board, pieces_arr)
         print("Valid moves: " + str(moves))
 
+        # Move the piece if it passes all testcases
+        move_piece(start_coords, end_coords, board)
         # Exit the loop when the game is over
 
-        break
+        if checkmate or stalemate:
+            break
 
 main()
