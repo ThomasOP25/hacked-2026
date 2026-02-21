@@ -1,14 +1,18 @@
 def check_diags(board, cords):
-    #Pass in board object and cords list
+    '''
+    Pass in board object and cords list with cords in format [x, y]
+    '''
     safe = True
-    diagFU, diagRU, diagFD, diagRD = [x,y]
-    king = board[x][y]
+    diagFU, diagRU, diagFD, diagRD = cords #Forwards Up, Reverse Up, Forwards Down, Reverse Down diagonals
+    king = board[x][y] #might be reversed when testing
     
+    #pieces found by the diagonal beams
     pieces_found = []
     
-    #proximal_pk indicates whether a pawn or king is within diag kill range
+    #proximal_piece indicates whether a pawn or king is within singular diag kill range. For example, if the king at pos [1,1] is under attack by a pawn at pos [2,2], then proximal_pieceFD = 1.
     proximal_pieceFU, proximal_pieceRU, proximal_pieceFD, proximal_pieceRD = 0
     
+    #Stores pieces found by diagonal beams, 0 if nothing found.
     #Forward Up diag.
     while board[diagFU[0]][diagFU[1]] == king or board[diagFU[0]][diagFU[1]] == "0" or diagRU[0] <= 8 or diagRU[1] <= 8:
         diagFU[0] += 1
@@ -55,8 +59,15 @@ def check_diags(board, cords):
     else:
         pieces_found.append(0)
         
-    #[FU, RU, FD, RD]                
-    if ((proximal_pieceFU == 1 and pieces_found[0] == "pawn" or pieces_found[0] == "king" and piece.color != king.color) or (proximal_pieceRU == 1 and pieces_found[1] == "pawn" or pieces_found[1] == "king" and piece.color != king.color)) or  ((proximal_pieceFD == 1 and pieces_found[2] == "king" and piece.color != king.color) or (proximal_pieceRD == 1 and pieces_found[2] == "king" and piece.color != king.color)) or (piece == "bishop" and piece.color != king.color) or (piece == "queen" and piece.color != king.color):
+    '''
+    [FU, RU, FD, RD] is in pieces_found, where each piece is an object or 0.  
+    1. FU and RU can be attack points for a black king or pawn within proximal range; RD and FD can be attack points for a white king or pawn within proximal range.
+    2. The opposite two diagonal points will always not be proximal for pawns of the same color, but proximal for kings of the same color.
+    3. Bishops and Queens can attack as long as they are the proximal piece to the king.
+    
+    **Refer to the separated_diag_condition.txt file on the end_condition branch for better visual**
+    '''
+    if ((proximal_pieceFU == 1 and pieces_found[0] == "king" and king.color == "Black" and piece.color != king.color) or (proximal_pieceFU == 1 and pieces_found[0] == "pawn" or pieces_found[0] == "king" and king.color == "White" and piece.color != king.color) or (proximal_pieceRU == 1 and pieces_found[1] == "king" and king.color == "Black" and piece.color != king.color) or (proximal_pieceRU == 1 and pieces_found[1] == "pawn" or pieces_found[1] == "king" and king.color == "White" and piece.color != king.color)) or ((proximal_pieceFD == 1 and pieces_found[2] == "king" and king.color == "White" and piece.color != king.color) or (proximal_pieceFD == 1 and pieces_found[2] == "pawn" or pieces_found[2] == "king" and king.color == "Black" and piece.color != king.color) or (proximal_pieceRD == 1 and pieces_found[3] == "king" and king.color == "White" and piece.color != king.color) or (proximal_pieceRD == 1 and pieces_found[3] == "pawn" or pieces_found[3] == "king" and king.color == "Black" and piece.color != king.color)) or (piece == "bishop" and piece.color != king.color) or (piece == "queen" and piece.color != king.color):
         safe = False
     
     #Check after searching possible diags.
