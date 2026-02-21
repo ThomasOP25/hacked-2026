@@ -1,201 +1,187 @@
-"""
-Defines the main game loop for a local chess multiplayer game.
-"""
-import pieces
-
-
-def make_board():
-    rows = 8
-    cols = 8
-
-    board = [[0 for _ in range(cols)] for _ in range(rows)]
-    return board
-
-
-def chess_pos_to_coords_dict():
-    """
-    Creates a dictionary  position in the form "<letter><number>" to matrix coordinates
-    in the form (<row>, <col>)
-    """
-
-    # Create a list of possible positions
-    pos_list = []
-    letters = ("a", "b", "c", "d", "e", "f", "g", "h")
-
-    for letter in letters:
-        for i in range(1, 9):
-            pos_list.append(f"{letter}{str(i)}")
-
-    # Map the list of positions to coordinates on the matrix
-    pos_dict = {}
-
-    for pos in pos_list:
-        letter = pos[0]
-        col = letters.index(letter)
-        row = 8 - int(pos[1])
-        pos_dict[pos] = (row, col)
-
-    return pos_dict
-
-
-def get_move():
-    """
-    Prompt the player for their move. This function calls itself recursively
-    until a valid move is entered.
-    """
-    move = input("Enter your move using chess postions e.g. \"a2 --> b3\" <starting position> <end position>: ")  
-    letters = ("a", "b", "c", "d", "e", "f", "g", "h")
-
-    # Run checks to make sure the move is valid
-    try:
-        a, b = move.split()
-        if len(a) != 2 or len(b) != 2:
-            raise ValueError
-        if a[0] not in letters or b[0] not in letters:
-            raise ValueError
-        if int(a[1]) not in range(1, 9) or int(b[1]) not in range(1, 9):
-            raise ValueError
-        if a == b:
-            raise ValueError
-    except ValueError:
-        print("Your move was entered in an invalid format.")
-        return get_move()
-    else:
-        print(f"Your input was entered in the correct format: {a} --> {b}.")
-        return (a, b)
+def check_diags(board, cords):
+    '''
+    Pass in board object and cords list with cords in format [x, y]
+    '''
+    safe = True
+    diagFU, diagRU, diagFD, diagRD = cords #Forwards Up, Reverse Up, Forwards Down, Reverse Down diagonals
+    king = board[cords[0]][cords[1]] #might be reversed when testing
     
-
-def print_current_board(board):
-    print("-" * 33)
-    for i in range(len(board)):
-        print("|", end="")
-        for j in range(len(board[i]) - 1):
-            square = str(board[i][j])
-            print(square.center(3), end="")
-            print("|", end="")
-        j += 1
-        square = str(board[i][j])
-        print(square.center(3), end="")
-        print("|")
-        print("-" * 33)
-
-
-def initialize_pieces():
-
-    wk = pieces.King(7, 4, "white")
-    wq = pieces.Queen(7, 3, "white")
-    wr1 = pieces.Rook(7, 0, "white")
-    wr2 = pieces.Rook(7, 7, "white")
-    wn1 = pieces.Knight(7, 1, "white")
-    wn2 = pieces.Knight(7, 6, "white")
-    wb1 = pieces.Bishop(7, 2, "white")
-    wb2 = pieces.Bishop(7, 5, "white")
-    wp1 = pieces.Pawn(6, 0, "white")
-    wp2 = pieces.Pawn(6, 1, "white")
-    wp3 = pieces.Pawn(6, 2, "white")
-    wp4 = pieces.Pawn(6, 3, "white")
-    wp5 = pieces.Pawn(6, 4, "white")
-    wp6 = pieces.Pawn(6, 5, "white")
-    wp7 = pieces.Pawn(6, 6, "white")
-    wp8 = pieces.Pawn(6, 7, "white")
-    bk = pieces.King(0, 4, "black")
-    bq = pieces.Queen(0, 3, "black")
-    br1 = pieces.Rook(0, 0, "black")
-    br2 = pieces.Rook(0, 7, "black")
-    bn1 = pieces.Knight(0, 1, "black")
-    bn2 = pieces.Knight(0, 6, "black")
-    bb1 = pieces.Bishop(0, 2, "black")
-    bb2 = pieces.Bishop(0, 5, "black")
-    bp1 = pieces.Pawn(1, 0, "black")
-    bp2 = pieces.Pawn(1, 1, "black")
-    bp3 = pieces.Pawn(1, 2, "black")
-    bp4 = pieces.Pawn(1, 3, "black")
-    bp5 = pieces.Pawn(1, 4, "black")
-    bp6 = pieces.Pawn(1, 5, "black")
-    bp7 = pieces.Pawn(1, 6, "black")
-    bp8 = pieces.Pawn(1, 7, "black")
-
-    pieces_arr = [wk, wq, wr1, wr2, wn1, wn2, wb1, wb2, wp1, wp2, wp3,
-                  wp4, wp5, wp6, wp7, wp8, bk, bq, br1, br2, bn1, bn2,
-                  bb1, bb2, bp1, bp2, bp3, bp4, bp5, bp6, bp7, bp8]
+    #pieces found by the diagonal beams
+    pieces_found = []
     
-    return pieces_arr
-
-
-def place_pieces(board, pieces_arr):
-    # Create a dictionary to convert the string representation of the 
-    # piece type to a chess symbol in Unicode
-    sym_to_emoji_dict = {"wk": "\u2654", "wq": "\u2655", "wr": "\u2656",
-                         "wb": "\u2657", "wn": "\u2658", "wp": "\u2659",
-                         "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
-                         "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
-
-    for piece in pieces_arr:
-        if piece.alive:
-            row = piece.row
-            col = piece.col
-            piece_type = sym_to_emoji_dict[str(piece)]
-            board[row][col] = piece_type
-
-
-def chess_pos_to_mtx_coords(chess_pos: str, pos_dict: dict):
-    coords = pos_dict[chess_pos]
-    return coords
-
-
-def check_start_position(turn: str, start_coords: tuple, pieces_arr: list):
-    """
-    Ensures that the player's starting position contains one of their pieces.
-    """
-    row = start_coords[0]
-    col = start_coords[1]
-
-    # Check if any of the piece's current positions match with start_pos
-    for piece in pieces_arr:
-        if piece.alive:
-            if piece.posx == row and piece.posy == col:
-                if piece.color == turn:
-                    return True
-    return False
-
-
-def main():
-    board = make_board()
-    pieces_arr = initialize_pieces()
-    pos_dict = chess_pos_to_coords_dict()  
-
-    turn = "white"
-
-    while True:
-        place_pieces(board, pieces_arr)
-        if turn == "white":
-            print("It is white's turn.")
-        elif turn == "black":
-            print("It is black's turn.")
-
-        print_current_board(board)
+    #proximal_piece indicates whether a pawn or king is within singular diag kill range. For example, if the king at pos [1,1] is under attack by a pawn at pos [2,2], then proximal_pieceFD = 1.
+    proximal_pieceFU, proximal_pieceRU, proximal_pieceFD, proximal_pieceRD = 0
+    
+    #Stores pieces found by diagonal beams, 0 if nothing found.
+    #Forward Up diag.
+    while board[diagFU[0]][diagFU[1]] == king or board[diagFU[0]][diagFU[1]] == "0" or diagRU[0] < 8 or diagRU[1] > 0:
+        diagFU[0] += 1
+        diagFU[1] -= 1
+        proximal_pieceFU += 1
         
-        # Get user input (position to move from --> position to move to)
-        start_pos, end_pos = get_move()
+                    
+    if board[diagFU[0]][diagFU[1]] != "0":
+        pieces_found.append(board[diagFU[0]][diagFU[1]])
+    else:
+        pieces_found.append(0)
+    
+                        
+    #Reverse Up diag.
+    while board[diagRU[0]][diagRU[1]] == king or board[diagRU[0]][diagRU[1]] == "0" or diagRU[0] > 0 or diagRU[1] > 0:
+        diagRU[0] -= 1
+        diagRU[1] -= 1
+        proximal_pieceRU += 1
+                    
+    if board[diagRU[0]][diagRU[1]] != "0":
+        pieces_found.append(board[diagRU[0]][diagRU[1]])                
+    else:
+        pieces_found.append(0)
+        
+    #Forward Down diag.
+    while board[diagFD[0]][diagFD[1]] == king or board[diagFD[0]][diagFD[1]] == "0" or diagFD[0] < 8 or diagFD[1] < 8:
+        diagFD[0] += 1
+        diagFD[1] += 1
+        proximal_pieceFD += 1
+                
+    if board[diagFD[0]][diagFD[1]] != "0":
+        pieces_found.append(board[diagFD[0]][diagFD[1]])                
+    else:
+        pieces_found.append(0)
+        
+    #Reverse Down diag.
+    while board[diagRD[0]][diagRD[1]] == king or board[diagRD[0]][diagRD[1]] == "0" or diagRD[0] > 0 or diagRD[1] < 8:
+        diagRD[0] -= 1
+        diagRD[1] += 1
+        proximal_pieceRD += 1
+                
+    if board[diagRD[0]][diagRD[1]] != "0":
+        pieces_found.append(board[diagRD[0]][diagRD[1]])                 
+    else:
+        pieces_found.append(0)
+        
+    '''
+    [FU, RU, FD, RD] is in pieces_found, where each piece is an object or 0.  
+    1. FU and RU can be attack points for a black king or pawn within proximal range; RD and FD can be attack points for a white king or pawn within proximal range.
+    2. The opposite two diagonal points will always not be proximal for pawns of the same color, but proximal for kings of the same color.
+    3. Bishops and Queens can attack as long as they are the proximal piece to the king.
+    
+    **Refer to the separated_diag_condition.txt file on the end_condition branch for better visual**
+    '''
+    if ((proximal_pieceFU == 1 and pieces_found[0] == "king" and king.color == "Black" and piece.color != king.color) or (proximal_pieceFU == 1 and pieces_found[0] == "pawn" or pieces_found[0] == "king" and king.color == "White" and piece.color != king.color) or (proximal_pieceRU == 1 and pieces_found[1] == "king" and king.color == "Black" and piece.color != king.color) or (proximal_pieceRU == 1 and pieces_found[1] == "pawn" or pieces_found[1] == "king" and king.color == "White" and piece.color != king.color)) or ((proximal_pieceFD == 1 and pieces_found[2] == "king" and king.color == "White" and piece.color != king.color) or (proximal_pieceFD == 1 and pieces_found[2] == "pawn" or pieces_found[2] == "king" and king.color == "Black" and piece.color != king.color) or (proximal_pieceRD == 1 and pieces_found[3] == "king" and king.color == "White" and piece.color != king.color) or (proximal_pieceRD == 1 and pieces_found[3] == "pawn" or pieces_found[3] == "king" and king.color == "Black" and piece.color != king.color)) or (piece == "bishop" and piece.color != king.color) or (piece == "queen" and piece.color != king.color):
+        safe = False
+    
+    #Check after searching possible diags.
+    return safe
 
-        # Convert chess position to matrix coordinates
-        start_coords = chess_pos_to_mtx_coords(start_pos, pos_dict)
-        end_coords = chess_pos_to_mtx_coords(end_pos, pos_dict)
-        print(start_coords)
-        print(end_coords)
-
-        """
-        Run testcases to check if move is valid
-        """
-        # Check if the square the player wants to move from contains
-        # one of their pieces
-        if check_start_position(turn, start_pos, pieces_arr):
-            print("Valid starting position")
-        else:
-            print("Invalid start position")
-
-        # Exit the loop when the game is over
-
-        break
-
-main()
+def check_straights(board, cords):
+    safe = True
+    #Four possible straight beams from king.
+    Ubeam, Dbeam, Lbeam, Rbeam = cords
+    
+    king = board[cords[0]][cords[1]]
+    
+    #Pieces found in straight beams (0 if none)
+    pieces_found = []
+    
+    #Search in one beam's direction until a piece is found or until reaching a border. Store piece or 0 in list.
+    #Up beam
+    while board[Ubeam[0]][Ubeam[1]] == king or board[Ubeam[0]][Ubeam[1]] == "0" or Ubeam[0] > 0:
+        Ubeam[0] -= 1
+    
+    if board[Ubeam[0]][Ubeam[1]] != "0":
+        pieces_found.append(board[Ubeam[0]][Ubeam[1]])                 
+    else:
+        pieces_found.append(0)    
+    
+    #Down Beam
+    while board[Dbeam[0]][Dbeam[1]] == king or board[Dbeam[0]][Dbeam[1]] == "0" or Dbeam[0] < 8:
+        Dbeam[0] += 1
+        
+    if board[Dbeam[0]][Dbeam[1]] != "0":
+        pieces_found.append(board[Dbeam[0]][Dbeam[1]])                 
+    else:
+        pieces_found.append(0) 
+    
+    #Left Beam
+    while board[Lbeam[0]][Lbeam[1]] == king or board[Lbeam[0]][Lbeam[1]] == "0" or Lbeam[0] > 0:
+        Lbeam[1] -= 1    
+    
+    if board[Lbeam[0]][Lbeam[1]] != "0":
+        pieces_found.append(board[Lbeam[0]][Lbeam[1]])                 
+    else:
+        pieces_found.append(0) 
+    
+    #Right Beam
+    while board[Rbeam[0]][Rbeam[1]] == king or board[Rbeam[0]][Rbeam[1]] == "0" or Rbeam[0] < 8:
+        Rbeam[1] += 1    
+        
+    if board[Rbeam[0]][Rbeam[1]] != "0":
+        pieces_found.append(board[Rbeam[0]][Rbeam[1]])                 
+    else:
+        pieces_found.append(0)   
+    
+    #The only pieces that can take out the king in a straight line is the king, the queen, or the rook.
+    for piece in pieces_found:
+        if piece == "Rook" or piece == "Queen" or piece == "King" and king.color != piece.color:
+            safe = False
+    
+    return safe
+    
+    
+def check_slants(board, cords):
+    safe = True
+    
+    #Left 4 Possible Knight pos
+    if cords[0] - 2 >= 0 and cords[1] - 1 >= 0:
+        if board[cords[0] - 2][cords[1] - 1] == "Knight":
+            safe = False
+    
+    if cords[0] - 2 >= 0 and cords[1] + 1 < 8:
+        if board[cords[0] - 2][cords[1] + 1] == "Knight":
+            safe = False    
+    
+    if cords[0] - 1 >= 0 and cords[1] + 2 < 8:
+        if board[cords[0] - 1][cords[1] + 2] == "Knight":
+            safe = False    
+    
+    if cords[0] - 1 >= 0 and cords[1] - 2 < 8:
+        if board[cords[0] - 1][cords[1] - 2] == "Knight":
+            safe = False    
+    
+    
+    #Right 4 possible knight pos       
+    if cords[0] + 2 >= 0 and cords[1] - 1 >= 0:
+        if board[cords[0] + 2][cords[1] - 1] == "Knight":
+            safe = False
+    
+    
+    if cords[0] + 2 >= 0 and cords[1] + 1 < 8:
+        if board[cords[0] + 2][cords[1] + 1] == "Knight":
+            safe = False  
+    
+    if cords[0] + 1 >= 0 and cords[1] - 2 >= 0:
+        if board[cords[0] + 1][cords[1] - 2] == "Knight":
+            safe = False
+                    
+    if cords[0] + 1 >= 0 and cords[1] + 2 < 8:
+        if board[cords[0] + 1][cords[1] + 2] == "Knight":
+            safe = False 
+    
+    return safe
+    
+    
+def game_condition():
+    #Pass in king object.
+    
+    diag_safe = check_diags(board, cords)
+    straight_safe = check_straights(board, cords)
+    slant_safe = check_slants(board, cords)
+    
+    #Safe king default.
+    status = 1
+    
+    #Check if king is in check (status = 0)
+    if diag_safe == False or straight_safe == False or slant_safe == False:
+        status = 0
+    #Check if king is in checkmate (status = -1)
+    
