@@ -21,7 +21,6 @@ def chess_pos_to_coords_dict():
     for letter in letters:
         for i in range(1, 9):
             pos_list.append(f"{letter}{str(i)}")
-    print(pos_list)
 
     # Map the list of positions to coordinates on the matrix
     pos_dict = {}
@@ -29,7 +28,7 @@ def chess_pos_to_coords_dict():
     for pos in pos_list:
         letter = pos[0]
         col = letters.index(letter)
-        row = int(pos[1]) - 1
+        row = 8 - int(pos[1])
         pos_dict[pos] = (row, col)
 
     return pos_dict
@@ -39,19 +38,7 @@ def get_move():
     Prompt the player for their move. This function calls itself recursively
     until a valid move is entered.
     """
-    move = input("Enter your move using chess postions e.g. \"a2 --> b3\": <starting position> <end position>")
-
-    # Source - https://stackoverflow.com/a/50224944
-    # Posted by Adam Smith, modified by community. See post 'Timeline' for change history
-    # Retrieved 2026-02-20, License - CC BY-SA 4.0
-    def validate(move):
-        try:
-            a, b = move.split()
-        except Exception:
-            return False
-        else:
-            return True
-        
+    move = input("Enter your move using chess postions e.g. \"a2 --> b3\" <starting position> <end position>: ")  
     letters = ("a", "b", "c", "d", "e", "f", "g", "h")
 
     # Run checks to make sure the move is valid
@@ -85,7 +72,18 @@ def main():
             print("It is black's turn.")
 
         # Display board
-
+        print("-" * 33)
+        for i in range(len(board)):
+            print("|", end="")
+            for j in range(len(board[i]) - 1):
+                square = str(board[i][j])
+                print(square.center(3), end="")
+                print("|", end="")
+            square = str(board[i][j])
+            print(square.center(3), end="")
+            print("|")
+            print("-" * 33)
+        
         # Get user input
         get_move()
 
