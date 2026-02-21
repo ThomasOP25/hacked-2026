@@ -2,30 +2,33 @@ def check_diags(board, cords):
     #Pass in board object and cords list
     safe = True
     diagFU, diagRU, diagFD, diagRD = [x,y]
+    pieces_found = []
+    king = board[x][y]
     for diag in range(4):
         for x in range(8):
             for y in range(8):
                 #Forward Up diag.
-                while board[diagFU[0]][diagFU[1]] != "0" & diagFU[0] <= 8 & diagFU[1] <= 8:
+                while board[diagFU[0]][diagFU[1]] != king or board[diagFU[0]][diagFU[1]] != "0":
                     diagFU[0] += 1
                     diagFU[1] -= 1
+                        
                 #Reverse Up diag.
-                while board[diagRU[0]][diagRU[1]] != "0" & diagRU[0] <= 8 & diagRU[1] <= 8:
+                while board[diagFU[0]][diagFU[1]] != king or board[diagRU[0]][diagRU[1]] != "0" or diagRU[0] <= 8 or diagRU[1] <= 8:
                     diagRU[0] -= 1
                     diagRU[1] -= 1
                     
                 #Forward Down diag.
-                while board[diagFD[0]][diagFD[1]] != "0" & diagFD[0] <= 8 & diagFD[1] <= 8:
+                while board[diagFU[0]][diagFU[1]] != king or board[diagFD[0]][diagFD[1]] != "0" or diagFD[0] <= 8 or diagFD[1] <= 8:
                     diagFD[0] += 1
                     diagFD[1] += 1
                     
                 #Reverse Down diag.
-                while board[diagRD[0]][diagRD[1]] != "0" & diagRD[0] <= 8 & diagRD[1] <= 8:
+                while board[diagFU[0]][diagFU[1]] != king or board[diagRD[0]][diagRD[1]] != "0" or diagRD[0] <= 8 or diagRD[1] <= 8:
                     diagRD[0] -= 1
                     diagRD[1] += 1
                     
-                    #Check each searched diag.
-                    return safe
+    #Check each searched diag.
+    return safe
 
 def check_straights(cord):
     pass
