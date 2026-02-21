@@ -132,7 +132,9 @@ class Pawn(Piece): #special case of polymorphism
             if 0 <= front_row < 8 and 0 <= col < 8:
                 target_square = board[front_row][col]
                 # Can only move diagonally IF there is an enemy piece there
-                if target_square != 0 and target_square.color != self.color:
+                if target_square == 0:
+                    break
+                elif target_square.color != self.color:
                     valid_moves.append((front_row, col))
                     
         return valid_moves
