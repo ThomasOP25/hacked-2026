@@ -78,14 +78,14 @@ def check_straights(board, cords):
     #Four possible straight beams from king.
     Ubeam, Dbeam, Lbeam, Rbeam = cords
     
-    king = board[cords[0]][cords[1]]
+    selected_piece = board[cords[0]][cords[1]]
     
     #Pieces found in straight beams (0 if none)
     pieces_found = []
     
     #Search in one beam's direction until a piece is found or until reaching a border. Store piece or 0 in list.
     #Up beam
-    while board[Ubeam[0]][Ubeam[1]] == king or board[Ubeam[0]][Ubeam[1]] == "0" or Ubeam[0] > 0:
+    while board[Ubeam[0]][Ubeam[1]] == selected_piece or board[Ubeam[0]][Ubeam[1]] == "0" or Ubeam[0] > 0:
         Ubeam[0] -= 1
     
     if board[Ubeam[0]][Ubeam[1]] != "0":
@@ -94,7 +94,7 @@ def check_straights(board, cords):
         pieces_found.append(0)    
     
     #Down Beam
-    while board[Dbeam[0]][Dbeam[1]] == king or board[Dbeam[0]][Dbeam[1]] == "0" or Dbeam[0] < 8:
+    while board[Dbeam[0]][Dbeam[1]] == selected_piece or board[Dbeam[0]][Dbeam[1]] == "0" or Dbeam[0] < 8:
         Dbeam[0] += 1
         
     if board[Dbeam[0]][Dbeam[1]] != "0":
@@ -103,7 +103,7 @@ def check_straights(board, cords):
         pieces_found.append(0) 
     
     #Left Beam
-    while board[Lbeam[0]][Lbeam[1]] == king or board[Lbeam[0]][Lbeam[1]] == "0" or Lbeam[0] > 0:
+    while board[Lbeam[0]][Lbeam[1]] == selected_piece or board[Lbeam[0]][Lbeam[1]] == "0" or Lbeam[0] > 0:
         Lbeam[1] -= 1    
     
     if board[Lbeam[0]][Lbeam[1]] != "0":
@@ -112,7 +112,7 @@ def check_straights(board, cords):
         pieces_found.append(0) 
     
     #Right Beam
-    while board[Rbeam[0]][Rbeam[1]] == king or board[Rbeam[0]][Rbeam[1]] == "0" or Rbeam[0] < 8:
+    while board[Rbeam[0]][Rbeam[1]] == selected_piece or board[Rbeam[0]][Rbeam[1]] == "0" or Rbeam[0] < 8:
         Rbeam[1] += 1    
         
     if board[Rbeam[0]][Rbeam[1]] != "0":
@@ -122,7 +122,7 @@ def check_straights(board, cords):
     
     #The only pieces that can take out the king in a straight line is the king, the queen, or the rook.
     for piece in pieces_found:
-        if piece == "Rook" or piece == "Queen" or piece == "King" and king.color != piece.color:
+        if piece == "Rook" or piece == "Queen" or piece == "King" and selected_piece.color != piece.color:
             safe = False
     
     return safe
@@ -172,16 +172,21 @@ def check_slants(board, cords):
     
 def game_condition():
     #Pass in king object.
-    
     diag_safe = check_diags(board, cords)
     straight_safe = check_straights(board, cords)
     slant_safe = check_slants(board, cords)
     
     #Safe king default.
     status = 1
+    legal_moves = legal_moves(king, board)
     
     #Check if king is in check (status = 0)
-    if diag_safe == False or straight_safe == False or slant_safe == False:
+    if not diag_safe or not straight_safe or not slant_safe:
         status = 0
+        
     #Check if king is in checkmate (status = -1)
+    if not diag_safe or not straight_safe or not slant_safe and len(legal_moves) == 0:
+        status = -1
     
+    #Checkmated king (status = -1)
+    return status
