@@ -120,6 +120,11 @@ def initialize_pieces():
 def place_pieces(board, pieces_arr, sym_to_emoji_dict):
     # Create a dictionary to convert the string representation of the
     # piece type to a chess symbol in Unicode
+
+    # Clear the board
+    for row in range(8):
+        for col in range(8):
+            board[row][col] = 0
   
     for piece in pieces_arr:
         if piece.alive:
@@ -163,7 +168,12 @@ def get_piece(start_coords, pieces_arr):
     return False
 
 
-def move_piece(start_coords, end_coords, board, piece):
+def move_piece(start_coords, end_coords, board, piece, pieces_arr):
+    # Mark captured piece as dead
+    for p in pieces_arr:
+        if p.row == end_coords[0] and p.col == end_coords[1] and p != piece:
+            p.alive = False
+
     start_row = start_coords[0]
     start_col = start_coords[1]
     end_row = end_coords[0]
@@ -230,11 +240,7 @@ def main():
             print("Valid starting position")
         else:
             print("Invalid start position")
-            if turn == "white":
-                turn = "black"
-            else:
-                turn = "white"
-            break
+            continue
 
         # Check that the square that the player wants to move to is in
         # the list of valid moves
@@ -246,12 +252,17 @@ def main():
 
         # Move the piece if it passes all testcases
         if end_coords in moves:
-            move_piece(start_coords, end_coords, board, piece)
+            move_piece(start_coords, end_coords, board, piece, pieces_arr)
         else:
             print("Invalid move")
         # Exit the loop when the game is over
 
         if checkmate or stalemate:
             break
+
+        if turn == "white":
+            turn = "black"
+        else:
+            turn = "white"
 
 main()
