@@ -184,6 +184,16 @@ def move_piece(start_coords, end_coords, board, piece, pieces_arr):
         if p.row == end_coords[0] and p.col == end_coords[1] and p != piece:
             p.alive = False
             dead_arr.append(p)
+    
+    # If a pawn moves diagonally into an empty square, it MUST be an En Passant!
+    if piece.__class__.__name__ == "Pawn" and start_coords[1] != end_coords[1] and board[end_coords[0]][end_coords[1]] == 0:
+        enemy_row = start_coords[0] # The enemy pawn is on our starting row
+        enemy_col = end_coords[1]   # The enemy pawn is on our destination column
+        for p in pieces_arr:
+            if p.alive and p.row == enemy_row and p.col == enemy_col:
+                p.alive = False
+                dead_arr.append(p)
+        board[enemy_row][enemy_col] = 0 # Clear it from the visual board
 
     start_row = start_coords[0]
     start_col = start_coords[1]

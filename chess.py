@@ -23,6 +23,7 @@ def main():
     while True:
         check = False
         functions.place_pieces(board, pieces_arr)
+        last_move = None #for en passant
 
         # Stalemate by repetition
 
@@ -84,6 +85,20 @@ def main():
         # a list of valid moves
         piece = functions.get_piece(start_coords, pieces_arr)
         moves = functions.get_strictly_legal_moves(king, piece, board, pieces_arr)
+        
+        if piece.__class__.__name__ == "Pawn" and last_move is not None:
+            # En Passant
+            last_piece, last_start, last_end = last_move
+            
+            # Was the very last move a pawn jumping two squares?
+            if last_piece.__class__.__name__ == "Pawn" and abs(last_start[0] - last_end[0]) == 2:
+                # Is that enemy pawn sitting exactly next to our pawn?
+                if last_end[0] == piece.row and abs(last_end[1] - piece.col) == 1:
+                    # Calculate the diagonal square behind the enemy pawn
+                    ep_row = piece.row + (-1 if piece.color == "white" else 1)
+                    ep_col = last_end[1]
+                    moves.append((ep_row, ep_col)) # Manually add it to valid moves
+                    
         print("Valid moves: " + str(moves))
 
         # Move the piece if it passes all testcases
@@ -106,6 +121,9 @@ def main():
         functions.update_dead_list(dead_arr, dead_pieces_white, dead_pieces_black)
         print(f"White dead list: {dead_pieces_white}")
         print(f"Black dead list: {dead_pieces_black}")
+
+        # Update last_move before swapping turns
+        last_move = (piece, start_coords, end_coords)
 
         if turn == "white":
             turn = "black"
