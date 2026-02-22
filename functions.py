@@ -169,10 +169,16 @@ def get_piece(start_coords, pieces_arr):
 
 
 def move_piece(start_coords, end_coords, board, piece, pieces_arr):
+    """
+    Moves a piece from one position to another. If the piece takes another,
+    the dead piece is added to an array.
+    """
     # Mark captured piece as dead
+    dead_arr = []
     for p in pieces_arr:
         if p.row == end_coords[0] and p.col == end_coords[1] and p != piece:
             p.alive = False
+            dead_arr.append(p)
 
     start_row = start_coords[0]
     start_col = start_coords[1]
@@ -186,9 +192,45 @@ def move_piece(start_coords, end_coords, board, piece, pieces_arr):
     piece.row = end_coords[0]
     piece.col = end_coords[1]
 
+    return dead_arr
+
+
+def update_dead_list(dead_arr, dead_pieces_white, dead_pieces_black):
+    for piece in dead_arr:
+        if piece.color == "white":
+            dead_pieces_white.append(piece)
+        else:
+            dead_pieces_black.append(piece)
+
+
 def check_end_position(end_coords: tuple, valid_moves: list):
     if end_coords in valid_moves:
         return True
     else:
         return False
-    
+
+
+def promote_pawn(piece, board):
+    """
+    Must pass piece of type "Pawn".
+    """
+    possible_choices = ("q", "r", "k", "b")
+    if piece.color == "white":
+        if piece.row == 0:
+            print("You can promote your pawn!")
+            promotion_piece = input("Choose a piece to promote to "
+                            "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
+        while promotion_piece not in possible_choices:
+            print("You can promote your pawn!")
+            promotion_piece = input("Choose a piece to promote to "
+                            "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
+        col = piece.col
+        board[0][col] == 0
+        pass
+
+            
+    elif piece.color == "black":
+        if piece.row == 7:
+            print("You can promote your pawn!")
+            promotion_piece = input("Choose a piece to promote to "
+                            "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")

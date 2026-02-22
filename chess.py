@@ -2,16 +2,21 @@
 Defines the core game loop for chess.
 """
 
-import pieces
 import functions
+
 def main():
     sym_to_emoji_dict = {"wk": "\u2654", "wq": "\u2655", "wr": "\u2656",
                         "wb": "\u2657", "wn": "\u2658", "wp": "\u2659",
                         "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
                         "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
+    
+    dead_pieces_white = []
+    dead_pieces_black = []
+
     board = functions.make_board()
     pieces_arr = functions.initialize_pieces()
     pos_dict = functions.chess_pos_to_coords_dict() 
+
     check = False
     checkmate = False
     stalemate = False
@@ -74,10 +79,19 @@ def main():
             print("There was a collision or out of bounds")
 
         if end_coords in moves:
-            functions.move_piece(start_coords, end_coords, board, piece, pieces_arr)
+            dead_arr = functions.move_piece(start_coords, end_coords, board, piece, pieces_arr)
         else:
             print("Invalid move")
             continue
+
+        # If a pawn reaches the furthest opposite row, it may be promoted.
+        # The user can choose which piece to promote to.
+        if piece.__class__.__name__.lower() == "pawn":
+            pass
+
+        # Add dead pieces to a list
+        functions.update_dead_list(dead_arr, dead_pieces_white, dead_pieces_black)
+
         # Exit the loop when the game is over
 
         if checkmate or stalemate:
