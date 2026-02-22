@@ -82,21 +82,17 @@ def main():
             continue
 
         # Check that the square that the player wants to move to is in
-        # the list of valid moves
-        # This list is not strictly valid, it contains the moves that do not 
-        # result in a collision
+        # a list of valid moves
         piece = functions.get_piece(start_coords, pieces_arr)
-        moves = piece.get_valid_moves(board, pieces_arr)
+        moves = functions.get_strictly_legal_moves(king, piece, board, pieces_arr)
         print("Valid moves: " + str(moves))
 
         # Move the piece if it passes all testcases
-        soft_validate = functions.check_end_position(end_coords, moves)
-        if soft_validate:
-            print("No collisions or out of bounds")
-        else:
-            print("There was a collision or out of bounds")
-
-        if end_coords in moves:
+        validate = functions.check_end_position(end_coords, moves)
+        if validate:
+            print("Valid move")
+            # Move the piece. If this move captures an enemy piece
+            # the function returns that piece.
             dead_arr = functions.move_piece(start_coords, end_coords, board, piece, pieces_arr)
         else:
             print("Invalid move")
@@ -109,6 +105,8 @@ def main():
 
         # Add dead pieces to a list
         functions.update_dead_list(dead_arr, dead_pieces_white, dead_pieces_black)
+        print(f"White dead list: {dead_pieces_white}")
+        print(f"Black dead list: {dead_pieces_black}")
 
         if turn == "white":
             turn = "black"
