@@ -30,7 +30,7 @@ class Piece:
                 else:
                     # find which piece is occupying the target square
                     for piece in pieces_arr:
-                        if end_row == piece.row and end_col == piece.col:
+                        if piece.alive and end_row == piece.row and end_col == piece.col:
                             target_piece = piece
                     # check piece collision
                     if target_piece.color != self.color:
@@ -140,7 +140,7 @@ class Pawn(Piece): #special case of polymorphism
                     continue
                 else: # find which piece is occupying the target square
                     for piece in pieces_arr:
-                        if front_row == piece.row and col == piece.col:
+                        if piece.alive and front_row == piece.row and col == piece.col:
                             target_piece = piece
                     if target_piece.color != self.color:
                         valid_moves.append((front_row, col))

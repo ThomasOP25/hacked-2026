@@ -163,7 +163,7 @@ def get_piece(start_coords, pieces_arr):
     col = start_coords[1]
 
     for piece in pieces_arr:
-        if row == piece.row and col == piece.col:
+        if piece.alive and row == piece.row and col == piece.col:
             return piece
     return False
 
@@ -234,3 +234,73 @@ def promote_pawn(piece, board):
             print("You can promote your pawn!")
             promotion_piece = input("Choose a piece to promote to "
                             "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
+            
+
+def king_checked(board, king, pieces_arr):
+    """
+    Returns True if the specified color's King is currently under attack.
+    """
+    king_pos = (king.row, king.col)
+            
+    # Ask all alive enemy pieces if they can hit the King's coordinate
+    enemy_color = "black" if king.color == "white" else "white"
+    for piece in pieces_arr:
+        if piece.alive and piece.color == enemy_color:
+            enemy_moves = piece.get_valid_moves(board, pieces_arr)
+            if king_pos in enemy_moves:
+                return True # Check!!!
+                
+    return False
+
+
+def get_strictly_legal_moves(king, piece, board, pieces_arr):
+    """
+    Filters pseudo-legal moves by simulating them and checking for King safety.
+    """
+    pseudo_moves = piece.get_valid_moves(board, pieces_arr)
+    legal_moves = []
+    
+    start_row = piece.row
+    start_col = piece.col
+    
+    for move in pseudo_moves:
+        end_row, end_col = move
+        
+        # Simulate the move
+        captured_piece = None
+        for p in pieces_arr:
+            # Check if there's a piece at the target square that would be captured
+            if p.alive and p.row == end_row and p.col == end_col:
+                captured_piece = p
+                captured_piece.alive = False 
+                break
+
+        # Update the piece's position
+        piece.row = end_row
+        piece.col = end_col
+        
+        # Remember the original board state to restore later
+        temp_start_symbol = board[start_row][start_col]
+        temp_end_symbol = board[end_row][end_col]
+        
+        # Update the board to reflect the simulated move
+        board[start_row][start_col] = 0
+        board[end_row][end_col] = temp_start_symbol
+        
+        # Check if the move leaves the player's own King in check
+        if not king_checked(board, king, pieces_arr):
+            legal_moves.append(move)
+            
+        # Undo the simulated move
+        board[start_row][start_col] = temp_start_symbol
+        board[end_row][end_col] = temp_end_symbol
+        
+        # Restore the piece's original position
+        piece.row = start_row
+        piece.col = start_col
+        
+        # If a piece was captured in the simulation, restore it
+        if captured_piece:
+            captured_piece.alive = True
+            
+    return legal_moves
