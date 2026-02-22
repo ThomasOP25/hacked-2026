@@ -263,8 +263,10 @@ def promote_pawn(piece, board, pieces_arr):
             elif promotion_piece == "b":
                 promotion_piece = pieces.Bishop(7, col, "black")
                 
+            piece.alive = False
             piece_type = SYM_TO_EMOJI_DICT[str(piece)]
             board[7][col] = piece_type
+            pieces_arr.append(promotion_piece)
             
 def castle_ready(board, checks, king, pieces_arr):
     ready_to_castle = False
