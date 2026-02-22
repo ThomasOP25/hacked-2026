@@ -5,12 +5,11 @@ Defines the core game loop for chess.
 import functions
 import pieces
 
+SYM_TO_EMOJI_DICT = {"wk": "\u2654", "wq": "\u2655", "wr": "\u2656",
+                    "wb": "\u2657", "wn": "\u2658", "wp": "\u2659",
+                    "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
+                    "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
 def main():
-    sym_to_emoji_dict = {"wk": "\u2654", "wq": "\u2655", "wr": "\u2656",
-                        "wb": "\u2657", "wn": "\u2658", "wp": "\u2659",
-                        "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
-                        "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
-    
     dead_pieces_white = []
     dead_pieces_black = []
 
@@ -23,7 +22,7 @@ def main():
 
     while True:
         check = False
-        functions.place_pieces(board, pieces_arr, sym_to_emoji_dict)
+        functions.place_pieces(board, pieces_arr)
 
         # Stalemate by repetition
 
@@ -101,7 +100,7 @@ def main():
         # If a pawn reaches the furthest opposite row, it may be promoted.
         # The user can choose which piece to promote to.
         if piece.__class__.__name__.lower() == "pawn":
-            pass
+            functions.promote_pawn(piece, board, pieces_arr)
 
         # Add dead pieces to a list
         functions.update_dead_list(dead_arr, dead_pieces_white, dead_pieces_black)

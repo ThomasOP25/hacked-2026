@@ -3,6 +3,11 @@ A library of functions designed for chess.py
 """
 import pieces
 
+SYM_TO_EMOJI_DICT = {"wk": "\u2654", "wq": "\u2655", "wr": "\u2656",
+                    "wb": "\u2657", "wn": "\u2658", "wp": "\u2659",
+                    "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
+                    "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
+
 def make_board():
     rows = 8
     cols = 8
@@ -117,7 +122,7 @@ def initialize_pieces():
     return pieces_arr
 
 
-def place_pieces(board, pieces_arr, sym_to_emoji_dict):
+def place_pieces(board, pieces_arr):
     # Create a dictionary to convert the string representation of the
     # piece type to a chess symbol in Unicode
 
@@ -130,7 +135,7 @@ def place_pieces(board, pieces_arr, sym_to_emoji_dict):
         if piece.alive:
             row = piece.row
             col = piece.col
-            piece_type = sym_to_emoji_dict[str(piece)]
+            piece_type = SYM_TO_EMOJI_DICT[str(piece)]
             board[row][col] = piece_type
 
 
@@ -210,7 +215,7 @@ def check_end_position(end_coords: tuple, valid_moves: list):
         return False
 
 
-def promote_pawn(piece, board):
+def promote_pawn(piece, board, pieces_arr):
     """
     Must pass piece of type "Pawn".
     """
@@ -220,20 +225,46 @@ def promote_pawn(piece, board):
             print("You can promote your pawn!")
             promotion_piece = input("Choose a piece to promote to "
                             "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
-        while promotion_piece not in possible_choices:
-            print("You can promote your pawn!")
-            promotion_piece = input("Choose a piece to promote to "
-                            "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
-        col = piece.col
-        board[0][col] == 0
-        pass
-
+            while promotion_piece not in possible_choices:
+                print("You can promote your pawn!")
+                promotion_piece = input("Choose a piece to promote to "
+                                "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
+            col = piece.col
+            if promotion_piece == "q":
+                promotion_piece = pieces.Queen(0, col, "white")
+            elif promotion_piece == "r":
+                promotion_piece = pieces.Rook(0, col, "white")
+            elif promotion_piece == "k":
+                promotion_piece = pieces.Knight(0, col, "white")
+            elif promotion_piece == "b":
+                promotion_piece = pieces.Bishop(0, col, "white")
             
+            piece.alive = False
+            piece_type = SYM_TO_EMOJI_DICT[str(promotion_piece)]
+            board[0][col] = piece_type
+            pieces_arr.append(promotion_piece)
+
     elif piece.color == "black":
         if piece.row == 7:
             print("You can promote your pawn!")
             promotion_piece = input("Choose a piece to promote to "
                             "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
+            while promotion_piece not in possible_choices:
+                print("You can promote your pawn!")
+                promotion_piece = input("Choose a piece to promote to "
+                                "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
+            col = piece.col
+            if promotion_piece == "q":
+                promotion_piece = pieces.Queen(7, col, "black")
+            elif promotion_piece == "r":
+                promotion_piece = pieces.Rook(7, col, "black")
+            elif promotion_piece == "k":
+                promotion_piece = pieces.Knight(7, col, "black")
+            elif promotion_piece == "b":
+                promotion_piece = pieces.Bishop(7, col, "black")
+                
+            piece_type = SYM_TO_EMOJI_DICT[str(piece)]
+            board[7][col] = piece_type
             
 def castle_ready(board, checks, king, pieces_arr):
     ready_to_castle = False
@@ -393,3 +424,93 @@ def get_strictly_legal_moves(king, piece, board, pieces_arr):
             captured_piece.alive = True
             
     return legal_moves
+
+def castle_ready(board, checks, king, pieces_arr):
+    ready_to_castle = False
+    for cords in checks:
+                if board[cords[0]][cords[1]] != "0":
+                    break
+                else:
+                    king.row = cords[0]
+                    king.col = cords[1]
+                    if not king_checked(board, king, pieces_arr):
+                        ready_to_castle = True
+    return ready_to_castle
+
+def develop_castle(turn, board, rook1, rook2, king, pieces_arr):
+    '''
+    Rules:
+    1. king and rooks must be on starting squares
+    2. king cannot be under attack
+    3. king cannot castle through a square that is under attack
+    '''
+    #Default Positions
+    black_rook1 = [0, 0]
+    black_rook2 = [0, 7]
+    white_rook1 = [7, 0]
+    white_rook2 = [7, 7]
+    black_king = [0, 4]
+    white_king = [7, 4]
+
+    #Default Statements for castling
+    can_castleL = False
+    can_castleR = False
+
+    if not king_checked(board, king, pieces_arr):
+        if turn == "White":
+            if king.row == white_king[0] and king.col == white_king[1] and (rook1.row == 7 and rook1.col == 0) or (rook2.row == 7 and rook2.col == 7):
+                #Run simulation to see if king can reach two spaces left or right without getting attacked.
+                orig_king = board[7][4]
+    
+                #Check left and right two spaces for safety
+                check_L = [[7,3], [7,2]]
+                check_R = [[7,5], [7,6]]
+    
+                #Simulate Castling to check for attacks
+                can_castleL = castle_ready(board, check_L, king, pieces_arr)
+                can_castleR = castle_ready(board, check_R, king, pieces_arr)
+                
+                #Reset Simulation
+                board[7][4] = king
+    
+                #Test messages
+                if can_castleL:
+                    print("Castled white left")
+                    board[7][2] = king
+                    board[7][3] = rook1
+                if can_castleR:
+                    print("Castled white right")
+                    board[7][6] = king
+                    board[7][5] = rook2
+                if not can_castleL and not can_castleR:
+                    print("Can't castle for white")
+        
+        if turn == "Black":
+            if king.row == black_king[0] and king.col == black_king[1] and (rook1.row == 0 and rook1.col == 0) or (rook2.row == 0 and rook2.col == 7):
+                #Run simulation to see if king can reach two spaces left or right without getting attacked.
+                orig_king = board[0][4]
+    
+                #Check left and right two spaces for safety
+                check_L = [[0,3], [0,2]]
+                check_R = [[0,5], [0,6]]
+    
+                #Simulate Castling to check for attacks
+                can_castleL = castle_ready(board, check_L, king, pieces_arr)
+                can_castleR = castle_ready(board, check_R, king, pieces_arr)
+    
+                #Reset Simulation
+                board[0][4] = king
+    
+                #Test messages
+                if can_castleL:
+                    print("Castled black left")
+                    board[0][2] = king
+                    board[0][3] = rook1
+                if can_castleR:
+                    print("Castled black right")
+                    board[0][6] = king
+                    board[0][5] = rook2
+                if not can_castleL and not can_castleR:
+                    print("Can't castle for black")
+    else:
+        print("King is checked. Cannot castle.")
