@@ -322,6 +322,8 @@ def develop_castle(turn, board, rook1, rook2, king, pieces_arr):
                     board[0][5] = rook2
                 if not can_castleL and not can_castleR:
                     print("Can't castle for black")
+    else:
+        print("King is checked. Cannot castle.")
                     
 def king_checked(board, king, pieces_arr):
     """
