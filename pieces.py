@@ -137,7 +137,7 @@ class Pawn(Piece): #special case of polymorphism
                 target_square = board[front_row][col]
                 # Can only move diagonally IF there is an enemy piece there
                 if target_square == 0:
-                    break
+                    continue
                 else: # find which piece is occupying the target square
                     for piece in pieces_arr:
                         if front_row == piece.row and col == piece.col:
