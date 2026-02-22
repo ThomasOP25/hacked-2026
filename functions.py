@@ -266,66 +266,63 @@ def develop_castle(turn, board, rook1, rook2, king, pieces_arr):
     can_castleL = False
     can_castleR = False
 
-    if turn == "White":
-        if king.row == white_king[0] and king.col == white_king[1] and (rook1.row == 7 and rook1.col == 0) or (rook2.row == 7 and rook2.col == 7):
-            #Run simulation to see if king can reach two spaces left or right without getting attacked.
-            orig_king = board[7][4]
-
-            #Check left and right two spaces for safety
-            check_L = [[7,3], [7,2]]
-            check_R = [[7,5], [7,6]]
-
-            #Simulate Castling to check for attacks
-            can_castleL = castle_ready(board, check_L, king, pieces_arr)
-            can_castleR = castle_ready(board, check_R, king, pieces_arr)
-            
-            #Reset Simulation
-            board[7][4] = king
-
-            #Test messages
-            if can_castleL:
-                print("Castled white left")
-                board[7][2] = king
-                board[7][3] = rook1
-            if can_castleR:
-                print("Castled white right")
-                board[7][6] = king
-                board[7][5] = rook2
-            if not can_castleL and not can_castleR:
-                print("Can't castle for white")
+    if not king_checked(board, king, pieces_arr):
+        if turn == "White":
+            if king.row == white_king[0] and king.col == white_king[1] and (rook1.row == 7 and rook1.col == 0) or (rook2.row == 7 and rook2.col == 7):
+                #Run simulation to see if king can reach two spaces left or right without getting attacked.
+                orig_king = board[7][4]
     
-    if turn == "Black":
-        if king.row == black_king[0] and king.col == black_king[1] and (rook1.row == 0 and rook1.col == 0) or (rook2.row == 0 and rook2.col == 7):
-            #Run simulation to see if king can reach two spaces left or right without getting attacked.
-            orig_king = board[0][4]
-
-            #Check left and right two spaces for safety
-            check_L = [[0,3], [0,2]]
-            check_R = [[0,5], [0,6]]
-
-            #Simulate Castling to check for attacks
-            can_castleL = castle_ready(board, check_L, king, pieces_arr)
-            can_castleR = castle_ready(board, check_R, king, pieces_arr)
-
-            #Reset Simulation
-            board[0][4] = king
-
-            #Test messages
-            if can_castleL:
-                print("Castled black left")
-                board[0][2] = king
-                board[0][3] = rook1
-            if can_castleR:
-                print("Castled black right")
-                board[0][6] = king
-                board[0][5] = rook2
-            if not can_castleL and not can_castleR:
-                print("Can't castle for black")
-
-            
-            
-            
-
+                #Check left and right two spaces for safety
+                check_L = [[7,3], [7,2]]
+                check_R = [[7,5], [7,6]]
+    
+                #Simulate Castling to check for attacks
+                can_castleL = castle_ready(board, check_L, king, pieces_arr)
+                can_castleR = castle_ready(board, check_R, king, pieces_arr)
+                
+                #Reset Simulation
+                board[7][4] = king
+    
+                #Test messages
+                if can_castleL:
+                    print("Castled white left")
+                    board[7][2] = king
+                    board[7][3] = rook1
+                if can_castleR:
+                    print("Castled white right")
+                    board[7][6] = king
+                    board[7][5] = rook2
+                if not can_castleL and not can_castleR:
+                    print("Can't castle for white")
+        
+        if turn == "Black":
+            if king.row == black_king[0] and king.col == black_king[1] and (rook1.row == 0 and rook1.col == 0) or (rook2.row == 0 and rook2.col == 7):
+                #Run simulation to see if king can reach two spaces left or right without getting attacked.
+                orig_king = board[0][4]
+    
+                #Check left and right two spaces for safety
+                check_L = [[0,3], [0,2]]
+                check_R = [[0,5], [0,6]]
+    
+                #Simulate Castling to check for attacks
+                can_castleL = castle_ready(board, check_L, king, pieces_arr)
+                can_castleR = castle_ready(board, check_R, king, pieces_arr)
+    
+                #Reset Simulation
+                board[0][4] = king
+    
+                #Test messages
+                if can_castleL:
+                    print("Castled black left")
+                    board[0][2] = king
+                    board[0][3] = rook1
+                if can_castleR:
+                    print("Castled black right")
+                    board[0][6] = king
+                    board[0][5] = rook2
+                if not can_castleL and not can_castleR:
+                    print("Can't castle for black")
+                    
 def king_checked(board, king, pieces_arr):
     """
     Returns True if the specified color's King is currently under attack.
