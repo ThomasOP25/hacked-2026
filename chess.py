@@ -255,6 +255,7 @@ def main():
             move_piece(start_coords, end_coords, board, piece, pieces_arr)
         else:
             print("Invalid move")
+            continue
         # Exit the loop when the game is over
 
         if checkmate or stalemate:

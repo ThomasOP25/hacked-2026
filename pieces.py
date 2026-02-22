@@ -6,7 +6,6 @@ class Piece:
         self.col = col
         self.color = color
         self.directions = []
-        self.max_step = 0
         self.alive = True
 
     def get_valid_moves(self, board, pieces_arr):
