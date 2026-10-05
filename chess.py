@@ -99,6 +99,11 @@ def main():
     last_move = None
     halfmove_clock = 0
     history = []
+    
+    # AI Config
+    AI_ENABLED = True
+    AI_COLOR = "black"
+    ai_depth = 2 # Medium by default
 
     def get_board_hash(board):
         # Create a simple string representation of the board state
@@ -139,13 +144,53 @@ def main():
 
         if is_draw:
             game_over = True
+            
+        # AI Turn Handling
+        if not game_over and AI_ENABLED and turn == AI_COLOR:
+            import ai
+            best_move = ai.get_best_move(board, pieces_arr, AI_COLOR, ai_depth, last_move)
+            if best_move:
+                start_coords, end_coords = best_move
+                piece = functions.get_piece(start_coords, pieces_arr)
+                
+                if piece.__class__.__name__.lower() == "pawn" or board[end_coords[0]][end_coords[1]] != 0:
+                    halfmove_clock = 0
+                else:
+                    halfmove_clock += 1
+                    
+                dead_arr = functions.move_piece(start_coords, end_coords, board, piece, pieces_arr, last_move)
+                last_move = (piece, start_coords, end_coords)
+                
+                if piece.__class__.__name__.lower() == "pawn":
+                    if (piece.color == "white" and piece.row == 0) or (piece.color == "black" and piece.row == 7):
+                        piece.alive = False
+                        promo = pieces.Queen(piece.row, piece.col, piece.color)
+                        pieces_arr.append(promo)
+
+                functions.update_dead_list(dead_arr, dead_pieces_white, dead_pieces_black)
+                turn = "white" if turn == "black" else "black"
+                continue # Skip event handling for this frame
         
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+                
+            elif e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_1:
+                    ai_depth = 1
+                    print("AI Difficulty set to EASY (Depth 1)")
+                elif e.key == pygame.K_2:
+                    ai_depth = 2
+                    print("AI Difficulty set to MEDIUM (Depth 2)")
+                elif e.key == pygame.K_3:
+                    ai_depth = 3
+                    print("AI Difficulty set to HARD (Depth 3)")
             
             elif e.type == pygame.MOUSEBUTTONDOWN and not game_over:
+                if AI_ENABLED and turn == AI_COLOR:
+                    continue # Ignore clicks during AI turn
+                    
                 location = pygame.mouse.get_pos()
                 col = location[0] // SQ_SIZE
                 row = location[1] // SQ_SIZE
@@ -208,6 +253,12 @@ def main():
         draw_board(screen)
         draw_highlights(screen, sq_selected, valid_moves)
         draw_pieces(screen, board, piece_font)
+        
+        # Draw AI info
+        font = pygame.font.SysFont("Helvetica", 16, True, False)
+        depth_text = f"AI Depth: {ai_depth} (Press 1/2/3)"
+        text_object = font.render(depth_text, True, pygame.Color('Black'))
+        screen.blit(text_object, (10, 10))
         
         # Display checkmate text
         if game_over:
