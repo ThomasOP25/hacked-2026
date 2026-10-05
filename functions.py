@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 A library of functions designed for chess.py
 """
@@ -8,13 +10,13 @@ SYM_TO_EMOJI_DICT = {"wk": "\u2654", "wq": "\u2655", "wr": "\u2656",
                     "bk": "\u265A", "bq": "\u265B", "br": "\u265C",
                     "bb": "\u265D", "bn": "\u265E", "bp": "\u265F"}
 
-def make_board():
+def make_board() -> list[list[int]]:
     rows = 8
     cols = 8
     board = [[0 for _ in range(cols)] for _ in range(rows)]
     return board
 
-def initialize_pieces():
+def initialize_pieces() -> list[pieces.Piece]:
     wk = pieces.King(7, 4, "white")
     wq = pieces.Queen(7, 3, "white")
     wr1 = pieces.Rook(7, 0, "white")
@@ -55,7 +57,7 @@ def initialize_pieces():
   
     return pieces_arr
 
-def place_pieces(board, pieces_arr):
+def place_pieces(board: list[list[int | str]], pieces_arr: list[pieces.Piece]) -> None:
     # Clear the board
     for row in range(8):
         for col in range(8):
@@ -68,7 +70,7 @@ def place_pieces(board, pieces_arr):
             piece_type = SYM_TO_EMOJI_DICT[str(piece)]
             board[row][col] = piece_type
 
-def check_start_position(turn: str, start_coords: tuple, pieces_arr: list):
+def check_start_position(turn: str, start_coords: tuple[int, int], pieces_arr: list[pieces.Piece]) -> bool:
     row = start_coords[0]
     col = start_coords[1]
 
@@ -79,23 +81,23 @@ def check_start_position(turn: str, start_coords: tuple, pieces_arr: list):
                     return True
     return False
 
-def get_piece(start_coords, pieces_arr):
+def get_piece(start_coords: tuple[int, int], pieces_arr: list[pieces.Piece]) -> pieces.Piece | None:
     row = start_coords[0]
     col = start_coords[1]
 
     for piece in pieces_arr:
         if piece.alive and row == piece.row and col == piece.col:
             return piece
-    return False
+    return None
 
-def move_piece(start_coords, end_coords, board, piece, pieces_arr, last_move=None):
+def move_piece(start_coords: tuple[int, int], end_coords: tuple[int, int], board: list[list[int | str]], piece: pieces.Piece, pieces_arr: list[pieces.Piece], last_move: tuple | None = None) -> list[pieces.Piece]:
     dead_arr = []
     
     start_row, start_col = start_coords
     end_row, end_col = end_coords
 
     # En Passant capture check
-    if piece.__class__.__name__.lower() == "pawn" and board[end_row][end_col] == 0 and start_col != end_col:
+    if piece.piece_type == "pawn" and board[end_row][end_col] == 0 and start_col != end_col:
         # We moved diagonally but the square was empty. This must be an En Passant!
         for p in pieces_arr:
             if p.row == start_row and p.col == end_col and p.alive:
@@ -110,7 +112,7 @@ def move_piece(start_coords, end_coords, board, piece, pieces_arr, last_move=Non
             dead_arr.append(p)
 
     # Castling check (if King moves 2 squares horizontally)
-    if piece.__class__.__name__.lower() == "king" and abs(start_col - end_col) == 2:
+    if piece.piece_type == "king" and abs(start_col - end_col) == 2:
         # Move the rook
         if end_col == 6: # Kingside
             rook = get_piece((start_row, 7), pieces_arr)
@@ -138,17 +140,17 @@ def move_piece(start_coords, end_coords, board, piece, pieces_arr, last_move=Non
 
     return dead_arr
 
-def update_dead_list(dead_arr, dead_pieces_white, dead_pieces_black):
+def update_dead_list(dead_arr: list[pieces.Piece], dead_pieces_white: list[pieces.Piece], dead_pieces_black: list[pieces.Piece]) -> None:
     for piece in dead_arr:
         if piece.color == "white":
             dead_pieces_white.append(piece)
         else:
             dead_pieces_black.append(piece)
 
-def check_end_position(end_coords: tuple, valid_moves: list):
+def check_end_position(end_coords: tuple[int, int], valid_moves: list[tuple[int, int]]) -> bool:
     return end_coords in valid_moves
 
-def king_checked(board, king, pieces_arr):
+def king_checked(board: list[list[int | str]], king: pieces.King, pieces_arr: list[pieces.Piece]) -> bool:
     king_pos = (king.row, king.col)
     enemy_color = "black" if king.color == "white" else "white"
     for piece in pieces_arr:
@@ -158,7 +160,7 @@ def king_checked(board, king, pieces_arr):
                 return True 
     return False
 
-def get_strictly_legal_moves(king, piece, board, pieces_arr, last_move=None):
+def get_strictly_legal_moves(king: pieces.King, piece: pieces.Piece, board: list[list[int | str]], pieces_arr: list[pieces.Piece], last_move: tuple | None = None) -> list[tuple[int, int]]:
     pseudo_moves = piece.get_valid_moves(board, pieces_arr, last_move)
     legal_moves = []
     
@@ -166,31 +168,48 @@ def get_strictly_legal_moves(king, piece, board, pieces_arr, last_move=None):
     start_col = piece.col
     
     # Check Castling moves if piece is king
-    if piece.__class__.__name__.lower() == "king" and not piece.has_moved:
+    if piece.piece_type == "king" and not piece.has_moved:
         if not king_checked(board, king, pieces_arr):
             # Check Kingside (col 5, 6)
             kingside_rook = get_piece((start_row, 7), pieces_arr)
-            if kingside_rook and kingside_rook.__class__.__name__.lower() == "rook" and not kingside_rook.has_moved:
+            if kingside_rook and kingside_rook.piece_type == "rook" and not kingside_rook.has_moved:
                 if board[start_row][5] == 0 and board[start_row][6] == 0:
-                    # Check if passing through check
+                    # Check if passing through check — also update board temporarily
+                    orig_symbol = board[start_row][start_col]
+                    board[start_row][start_col] = 0
+                    board[start_row][5] = orig_symbol
                     piece.col = 5
                     if not king_checked(board, king, pieces_arr):
+                        board[start_row][5] = 0
+                        board[start_row][6] = orig_symbol
                         piece.col = 6
                         if not king_checked(board, king, pieces_arr):
                             pseudo_moves.append((start_row, 6))
-                    piece.col = start_col # restore
+                    # Restore board and piece
+                    board[start_row][5] = 0
+                    board[start_row][6] = 0
+                    board[start_row][start_col] = orig_symbol
+                    piece.col = start_col
 
             # Check Queenside (col 1, 2, 3)
             queenside_rook = get_piece((start_row, 0), pieces_arr)
-            if queenside_rook and queenside_rook.__class__.__name__.lower() == "rook" and not queenside_rook.has_moved:
+            if queenside_rook and queenside_rook.piece_type == "rook" and not queenside_rook.has_moved:
                 if board[start_row][1] == 0 and board[start_row][2] == 0 and board[start_row][3] == 0:
-                    # Check passing through
+                    orig_symbol = board[start_row][start_col]
+                    board[start_row][start_col] = 0
+                    board[start_row][3] = orig_symbol
                     piece.col = 3
                     if not king_checked(board, king, pieces_arr):
+                        board[start_row][3] = 0
+                        board[start_row][2] = orig_symbol
                         piece.col = 2
                         if not king_checked(board, king, pieces_arr):
                             pseudo_moves.append((start_row, 2))
-                    piece.col = start_col # restore
+                    # Restore
+                    board[start_row][2] = 0
+                    board[start_row][3] = 0
+                    board[start_row][start_col] = orig_symbol
+                    piece.col = start_col
 
     for move in pseudo_moves:
         end_row, end_col = move
@@ -205,7 +224,7 @@ def get_strictly_legal_moves(king, piece, board, pieces_arr, last_move=None):
 
         # Simulate En Passant Capture
         ep_captured_piece = None
-        if piece.__class__.__name__.lower() == "pawn" and start_col != end_col and captured_piece is None:
+        if piece.piece_type == "pawn" and start_col != end_col and captured_piece is None:
             for p in pieces_arr:
                 if p.alive and p.row == start_row and p.col == end_col:
                     ep_captured_piece = p

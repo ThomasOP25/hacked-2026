@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Defines the core game loop for chess with a Pygame GUI.
 """
@@ -6,6 +8,7 @@ import pygame
 import sys
 import functions
 import pieces
+import ai
 
 # Initialize pygame
 pygame.init()
@@ -37,14 +40,14 @@ SYM_TO_COLOR = {
     "\u265D": (0, 0, 0), "\u265E": (0, 0, 0), "\u265F": (0, 0, 0)
 }
 
-def draw_board(screen):
+def draw_board(screen: pygame.Surface) -> None:
     colors = [COLOR_LIGHT, COLOR_DARK]
     for row in range(DIMENSION):
         for col in range(DIMENSION):
             color = colors[((row + col) % 2)]
             pygame.draw.rect(screen, color, pygame.Rect(col*SQ_SIZE, row*SQ_SIZE, SQ_SIZE, SQ_SIZE))
 
-def draw_highlights(screen, selected_sq, valid_moves):
+def draw_highlights(screen: pygame.Surface, selected_sq: tuple[int, int] | None, valid_moves: list[tuple[int, int]]) -> None:
     if selected_sq:
         row, col = selected_sq
         s = pygame.Surface((SQ_SIZE, SQ_SIZE))
@@ -55,7 +58,7 @@ def draw_highlights(screen, selected_sq, valid_moves):
             mr, mc = move
             pygame.draw.circle(screen, COLOR_HIGHLIGHT, (mc*SQ_SIZE + SQ_SIZE//2, mr*SQ_SIZE + SQ_SIZE//2), SQ_SIZE//6)
 
-def draw_pieces(screen, board, font):
+def draw_pieces(screen: pygame.Surface, board: list[list], font: pygame.font.Font) -> None:
     for row in range(DIMENSION):
         for col in range(DIMENSION):
             piece = board[row][col]
@@ -75,7 +78,7 @@ def draw_pieces(screen, board, font):
                 screen.blit(shadow_object, shadow_rect)
                 screen.blit(text_object, text_rect)
 
-def main():
+def main() -> None:
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Chess - HackED 2026")
     clock = pygame.time.Clock()
@@ -105,18 +108,35 @@ def main():
     AI_COLOR = "black"
     ai_depth = 2 # Medium by default
 
-    def get_board_hash(board):
-        # Create a simple string representation of the board state
-        return "".join([str(p) for row in board for p in row])
+    def get_board_hash(board, turn, pieces_arr, last_move):
+        # Include piece positions
+        board_str = "".join([str(p) for row in board for p in row])
+        # Include turn
+        board_str += turn
+        # Include castling rights
+        for p in pieces_arr:
+            if p.alive and (isinstance(p, pieces.King) or isinstance(p, pieces.Rook)):
+                board_str += f"{p.piece_type}{p.col}{p.has_moved}"
+        # Include en passant target
+        if last_move:
+            lm_piece, lm_start, lm_end = last_move
+            if lm_piece.piece_type == "pawn" and abs(lm_start[0] - lm_end[0]) == 2:
+                board_str += f"ep{lm_end[1]}"
+        return board_str
 
     while True:
         check = False
         functions.place_pieces(board, pieces_arr)
         
         # Check for king check/checkmate
+        king = None
         for piece in pieces_arr:
-            if piece.color == turn and isinstance(piece, pieces.King):
+            if piece.alive and piece.color == turn and isinstance(piece, pieces.King):
                 king = piece
+                break
+        if king is None:
+            # Should never happen in a valid game
+            continue
         
         if functions.king_checked(board, king, pieces_arr):
             check = True
@@ -127,7 +147,7 @@ def main():
                 legal_moves_for_turn += functions.get_strictly_legal_moves(king, p, board, pieces_arr, last_move)
         
         # 3-Fold Repetition Check
-        board_hash = get_board_hash(board)
+        board_hash = get_board_hash(board, turn, pieces_arr, last_move)
         if len(player_clicks) == 0: # Only check at the start of a turn, before a click
             history.append(board_hash)
         
@@ -147,13 +167,12 @@ def main():
             
         # AI Turn Handling
         if not game_over and AI_ENABLED and turn == AI_COLOR:
-            import ai
             best_move = ai.get_best_move(board, pieces_arr, AI_COLOR, ai_depth, last_move)
             if best_move:
                 start_coords, end_coords = best_move
                 piece = functions.get_piece(start_coords, pieces_arr)
                 
-                if piece.__class__.__name__.lower() == "pawn" or board[end_coords[0]][end_coords[1]] != 0:
+                if piece.piece_type == "pawn" or board[end_coords[0]][end_coords[1]] != 0:
                     halfmove_clock = 0
                 else:
                     halfmove_clock += 1
@@ -161,7 +180,7 @@ def main():
                 dead_arr = functions.move_piece(start_coords, end_coords, board, piece, pieces_arr, last_move)
                 last_move = (piece, start_coords, end_coords)
                 
-                if piece.__class__.__name__.lower() == "pawn":
+                if piece.piece_type == "pawn":
                     if (piece.color == "white" and piece.row == 0) or (piece.color == "black" and piece.row == 7):
                         piece.alive = False
                         promo = pieces.Queen(piece.row, piece.col, piece.color)
@@ -222,7 +241,7 @@ def main():
                         piece = functions.get_piece(start_coords, pieces_arr)
                         
                         # Reset 50-move rule if Pawn moves or capture happens
-                        if piece.__class__.__name__.lower() == "pawn" or board[end_coords[0]][end_coords[1]] != 0:
+                        if piece.piece_type == "pawn" or board[end_coords[0]][end_coords[1]] != 0:
                             halfmove_clock = 0
                         else:
                             halfmove_clock += 1
@@ -231,7 +250,7 @@ def main():
                         last_move = (piece, start_coords, end_coords)
                         
                         # Handle Pawn Promotion (Auto-queen for now)
-                        if piece.__class__.__name__.lower() == "pawn":
+                        if piece.piece_type == "pawn":
                             if (piece.color == "white" and piece.row == 0) or (piece.color == "black" and piece.row == 7):
                                 piece.alive = False
                                 promo = pieces.Queen(piece.row, piece.col, piece.color)

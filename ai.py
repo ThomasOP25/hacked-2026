@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functions
 import pieces
 
@@ -18,7 +20,7 @@ CENTER_BONUS = {
     (5, 2): 1, (5, 3): 1, (5, 4): 1, (5, 5): 1,
 }
 
-def evaluate_board(pieces_arr, ai_color):
+def evaluate_board(pieces_arr: list, ai_color: str) -> int:
     """
     Returns a score from the perspective of the AI.
     Positive means AI is winning, negative means human is winning.
@@ -26,7 +28,7 @@ def evaluate_board(pieces_arr, ai_color):
     score = 0
     for p in pieces_arr:
         if p.alive:
-            piece_type = p.__class__.__name__.lower()
+            piece_type = p.piece_type
             val = PIECE_VALUES.get(piece_type, 0)
             
             # Add center control bonus for non-kings
@@ -39,7 +41,7 @@ def evaluate_board(pieces_arr, ai_color):
                 score -= val
     return score
 
-def simulate_move(board, pieces_arr, start, end):
+def simulate_move(board: list[list], pieces_arr: list, start: tuple[int, int], end: tuple[int, int]) -> dict | None:
     """
     Applies a move and returns state needed to undo it.
     This is a simplified version of move_piece for the AI tree search.
@@ -70,7 +72,7 @@ def simulate_move(board, pieces_arr, start, end):
     }
     
     # 1. En Passant Capture Check
-    if piece.__class__.__name__.lower() == "pawn" and board[end_row][end_col] == 0 and start_col != end_col:
+    if piece.piece_type == "pawn" and board[end_row][end_col] == 0 and start_col != end_col:
         for p in pieces_arr:
             if p.alive and p.row == start_row and p.col == end_col:
                 undo_state['ep_captured'] = p
@@ -86,30 +88,36 @@ def simulate_move(board, pieces_arr, start, end):
             break
             
     # 3. Castling Check
-    if piece.__class__.__name__.lower() == "king" and abs(start_col - end_col) == 2:
+    if piece.piece_type == "king" and abs(start_col - end_col) == 2:
         if end_col == 6: # Kingside
             for p in pieces_arr:
                 if p.alive and p.row == start_row and p.col == 7:
-                    undo_state['rook_moved'] = p
+                    rook = p
+                    undo_state['rook_moved'] = rook
                     undo_state['rook_start'] = (start_row, 7)
                     undo_state['rook_end'] = (start_row, 5)
-                    p.col = 5
+                    undo_state['rook_orig_has_moved'] = rook.has_moved
+                    rook.has_moved = True
+                    rook.col = 5
                     board[start_row][7] = 0
-                    board[start_row][5] = functions.SYM_TO_EMOJI_DICT[str(p)]
+                    board[start_row][5] = functions.SYM_TO_EMOJI_DICT[str(rook)]
                     break
         elif end_col == 2: # Queenside
             for p in pieces_arr:
                 if p.alive and p.row == start_row and p.col == 0:
-                    undo_state['rook_moved'] = p
+                    rook = p
+                    undo_state['rook_moved'] = rook
                     undo_state['rook_start'] = (start_row, 0)
                     undo_state['rook_end'] = (start_row, 3)
-                    p.col = 3
+                    undo_state['rook_orig_has_moved'] = rook.has_moved
+                    rook.has_moved = True
+                    rook.col = 3
                     board[start_row][0] = 0
-                    board[start_row][3] = functions.SYM_TO_EMOJI_DICT[str(p)]
+                    board[start_row][3] = functions.SYM_TO_EMOJI_DICT[str(rook)]
                     break
                     
     # 4. Handle Promotion
-    if piece.__class__.__name__.lower() == "pawn" and (end_row == 0 or end_row == 7):
+    if piece.piece_type == "pawn" and (end_row == 0 or end_row == 7):
         piece.alive = False
         promo = pieces.Queen(end_row, end_col, piece.color)
         pieces_arr.append(promo)
@@ -127,7 +135,7 @@ def simulate_move(board, pieces_arr, start, end):
         
     return undo_state
 
-def unmake_move(board, pieces_arr, undo_state):
+def unmake_move(board: list[list], pieces_arr: list, undo_state: dict) -> None:
     """Restores the board and pieces from an undo_state"""
     if not undo_state: return
     
@@ -167,15 +175,15 @@ def unmake_move(board, pieces_arr, undo_state):
         rr_start, rc_start = undo_state['rook_start']
         rr_end, rc_end = undo_state['rook_end']
         rook.col = rc_start
-        rook.has_moved = False
+        rook.has_moved = undo_state.get('rook_orig_has_moved', False)
         board[rr_end][rc_end] = 0
         board[rr_start][rc_start] = functions.SYM_TO_EMOJI_DICT[str(rook)]
 
-def get_all_legal_moves_for_color(board, pieces_arr, color, last_move):
+def get_all_legal_moves_for_color(board: list[list], pieces_arr: list, color: str, last_move: tuple | None) -> list[tuple[tuple[int, int], tuple[int, int]]]:
     moves = []
     king = None
     for p in pieces_arr:
-        if p.alive and p.color == color and p.__class__.__name__.lower() == "king":
+        if p.alive and p.color == color and p.piece_type == "king":
             king = p
             break
             
@@ -189,7 +197,7 @@ def get_all_legal_moves_for_color(board, pieces_arr, color, last_move):
                 moves.append(((p.row, p.col), end_pos))
     return moves
 
-def minimax(board, pieces_arr, depth, alpha, beta, is_maximizing, ai_color, last_move):
+def minimax(board: list[list], pieces_arr: list, depth: int, alpha: float, beta: float, is_maximizing: bool, ai_color: str, last_move: tuple | None) -> float:
     if depth == 0:
         return evaluate_board(pieces_arr, ai_color)
         
@@ -198,7 +206,7 @@ def minimax(board, pieces_arr, depth, alpha, beta, is_maximizing, ai_color, last
     
     if not moves:
         # No moves -> Checkmate or Stalemate
-        king = next((p for p in pieces_arr if p.alive and p.color == current_color and p.__class__.__name__.lower() == "king"), None)
+        king = next((p for p in pieces_arr if p.alive and p.color == current_color and p.piece_type == "king"), None)
         if king and functions.king_checked(board, king, pieces_arr):
             return -99999 if is_maximizing else 99999 # Checkmate
         return 0 # Stalemate
@@ -235,7 +243,7 @@ def minimax(board, pieces_arr, depth, alpha, beta, is_maximizing, ai_color, last
                 break
         return min_eval
 
-def get_best_move(board, pieces_arr, ai_color, depth, last_move):
+def get_best_move(board: list[list], pieces_arr: list, ai_color: str, depth: int, last_move: tuple | None) -> tuple[tuple[int, int], tuple[int, int]] | None:
     """
     Entry point for the AI. Returns (start_coords, end_coords).
     """

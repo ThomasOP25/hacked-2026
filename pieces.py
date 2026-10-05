@@ -1,14 +1,18 @@
+from __future__ import annotations
+
+
 class Piece:
     # parent class: handles similarities in all pieces
-    def __init__(self, row, col, color):
+    def __init__(self, row: int, col: int, color: str) -> None:
         self.row = row
         self.col = col
         self.color = color
         self.directions = []
         self.alive = True
         self.has_moved = False # Track if piece has moved (for castling, pawn double step)
+        self.piece_type: str = self.__class__.__name__.lower()
 
-    def get_valid_moves(self, board, pieces_arr, last_move=None):
+    def get_valid_moves(self, board: list[list[int | str]], pieces_arr: list[Piece], last_move: tuple | None = None) -> list[tuple[int, int]]:
         valid_moves = []
         for direction in self.directions:
             # each piece can move a maximum number of steps in each direction
@@ -43,15 +47,18 @@ class Piece:
                     break
                     
         return valid_moves
-        
-    def __str__(self):
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.row}, {self.col}, '{self.color}', alive={self.alive})"
+
+    def __str__(self) -> str:
         # __class__.__name__ automatically gets the name of the piece
-        return f"{self.color[0].lower()}{self.__class__.__name__.lower()[0]}"
+        return f"{self.color[0].lower()}{self.piece_type[0]}"
 
 #########Below are children of Piece:###########
 
 class Rook(Piece):
-    def __init__(self, row, col, color):
+    def __init__(self, row: int, col: int, color: str) -> None:
         super().__init__(row, col, color)
 
         # vectors of (row_change, col_change) -> Down, Up, Right, Left
@@ -60,8 +67,8 @@ class Rook(Piece):
 
 
 class Bishop(Piece):
-    def __init__(self, posx, posy, color):
-        super().__init__(posx, posy, color)
+    def __init__(self, row: int, col: int, color: str) -> None:
+        super().__init__(row, col, color)
 
         # vectors of (row_change, col_change) -> TopLeft, TopRight, BottomLeft, BottomRight
         self.directions = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
@@ -69,8 +76,8 @@ class Bishop(Piece):
     
         
 class Knight(Piece):
-    def __init__(self, posx, posy, color):
-        super().__init__(posx, posy, color)
+    def __init__(self, row: int, col: int, color: str) -> None:
+        super().__init__(row, col, color)
 
         # vectors of (row_change, col_change) ->
         self.directions = [
@@ -79,13 +86,13 @@ class Knight(Piece):
         ]
         self.max_steps = 1
     
-    def __str__(self):
+    def __str__(self) -> str:
         # __class__.__name__ automatically gets the name of the piece
-        return f"{self.color[0].lower()}{self.__class__.__name__.lower()[1]}"
+        return f"{self.color[0].lower()}{self.piece_type[1]}"
 
 
 class King(Piece):
-    def __init__(self, row, col, color):
+    def __init__(self, row: int, col: int, color: str) -> None:
         super().__init__(row, col, color)
         
         # vectors of (row_change, col_change) ->
@@ -97,7 +104,7 @@ class King(Piece):
 
 
 class Queen(Piece):
-    def __init__(self, row, col, color):
+    def __init__(self, row: int, col: int, color: str) -> None:
         super().__init__(row, col, color)
         
         # vectors of (row_change, col_change) ->
@@ -109,10 +116,10 @@ class Queen(Piece):
 
         
 class Pawn(Piece): #special case of polymorphism
-    def __init__(self, row, col, color):
+    def __init__(self, row: int, col: int, color: str) -> None:
         super().__init__(row, col, color)
 
-    def get_valid_moves(self, board, pieces_arr, last_move=None):
+    def get_valid_moves(self, board: list[list[int | str]], pieces_arr: list[Piece], last_move: tuple | None = None) -> list[tuple[int, int]]:
         valid_moves = []
         
         # Determine direction based on color 
@@ -149,7 +156,7 @@ class Pawn(Piece): #special case of polymorphism
                 # 4. En Passant
                 if target_square == 0 and last_move:
                     lm_piece, lm_start, lm_end = last_move
-                    if lm_piece.__class__.__name__.lower() == "pawn" and lm_piece.color != self.color:
+                    if lm_piece.piece_type == "pawn" and lm_piece.color != self.color:
                         # Check if last move was a double step
                         if abs(lm_start[0] - lm_end[0]) == 2:
                             # Check if the pawn landed next to us
