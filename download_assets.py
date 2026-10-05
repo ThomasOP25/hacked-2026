@@ -20,40 +20,35 @@ def ensure_assets() -> None:
     }
     
     pygame.font.init()
-    # Try multiple fonts as fallback for chess characters
-    fonts = ['segoe ui symbol', 'arial unicode ms', 'lucida sans unicode', 'helvetica']
-    font = None
-    for f in fonts:
-        try:
-            font = pygame.font.SysFont(f, 100)
-            if font.metrics('\u265A'): # check if it supports the glyph
-                break
-        except:
-            pass
-    if not font or not font.metrics('\u265A'):
-        font = pygame.font.SysFont(None, 100) # fallback
+    # Use Arial Unicode MS which has full chess piece support on macOS
+    try:
+        font = pygame.font.SysFont('arialunicode', 100)
+    except:
+        font = pygame.font.SysFont('applesymbols', 100)
+        
+    if not font.metrics('\u265A'):
+        font = pygame.font.SysFont(None, 100)
     
     for filename, (unicode_char, color) in piece_data.items():
         filepath = f'assets/images/{filename}.png'
-        if not os.path.exists(filepath):
-            print(f'Generating {filename}.png...')
-            text_surf = font.render(unicode_char, True, color)
+        print(f'Generating {filename}.png...')
+        text_surf = font.render(unicode_char, True, color)
+        
+        size = max(text_surf.get_width(), text_surf.get_height()) + 10
+        surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        
+        # Outline for contrast
+        outline_color = (0, 0, 0) if color == (255, 255, 255) else (255, 255, 255)
+        outline = font.render(unicode_char, True, outline_color)
+        
+        # Draw outline
+        for dx, dy in [(-2,-2), (2,-2), (-2,2), (2,2), (0,3), (3,0), (-3,0), (0,-3)]:
+            surf.blit(outline, (size//2 - outline.get_width()//2 + dx, size//2 - outline.get_height()//2 + dy))
             
-            size = max(text_surf.get_width(), text_surf.get_height()) + 10
-            surf = pygame.Surface((size, size), pygame.SRCALPHA)
-            
-            # Outline for contrast
-            outline_color = (0, 0, 0) if color == (255, 255, 255) else (255, 255, 255)
-            outline = font.render(unicode_char, True, outline_color)
-            
-            # Draw outline
-            for dx, dy in [(-2,-2), (2,-2), (-2,2), (2,2), (0,3), (3,0), (-3,0), (0,-3)]:
-                surf.blit(outline, (size//2 - outline.get_width()//2 + dx, size//2 - outline.get_height()//2 + dy))
-                
-            # Draw main text
-            surf.blit(text_surf, (size//2 - text_surf.get_width()//2, size//2 - text_surf.get_height()//2))
-            
-            pygame.image.save(surf, filepath)
+        # Draw main text
+        surf.blit(text_surf, (size//2 - text_surf.get_width()//2, size//2 - text_surf.get_height()//2))
+        
+        pygame.image.save(surf, filepath)
 
 if __name__ == "__main__":
     ensure_assets()
