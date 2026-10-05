@@ -1,4 +1,3 @@
-
 class Piece:
     # parent class: handles similarities in all pieces
     def __init__(self, row, col, color):
@@ -7,8 +6,9 @@ class Piece:
         self.color = color
         self.directions = []
         self.alive = True
+        self.has_moved = False # Track if piece has moved (for castling, pawn double step)
 
-    def get_valid_moves(self, board, pieces_arr):
+    def get_valid_moves(self, board, pieces_arr, last_move=None):
         valid_moves = []
         for direction in self.directions:
             # each piece can move a maximum number of steps in each direction
@@ -29,11 +29,13 @@ class Piece:
                     valid_moves.append((end_row, end_col))
                 else:
                     # find which piece is occupying the target square
+                    target_piece = None
                     for piece in pieces_arr:
                         if piece.alive and end_row == piece.row and end_col == piece.col:
                             target_piece = piece
+                            break
                     # check piece collision
-                    if target_piece.color != self.color:
+                    if target_piece and target_piece.color != self.color:
                         # target square is an enemy piece (take) -> valid
                         valid_moves.append((end_row, end_col))
                         # target square is an friendly piece -> invalid
@@ -110,7 +112,7 @@ class Pawn(Piece): #special case of polymorphism
     def __init__(self, row, col, color):
         super().__init__(row, col, color)
 
-    def get_valid_moves(self, board, pieces_arr):
+    def get_valid_moves(self, board, pieces_arr, last_move=None):
         valid_moves = []
         
         # Determine direction based on color 
@@ -123,9 +125,8 @@ class Pawn(Piece): #special case of polymorphism
             if board[front_row][self.col] == 0:
                 valid_moves.append((front_row, self.col))
                 
-                # 2. Double step forward (only if first step is clear AND it's on starting row)
-                starting_row = 6 if self.color == "white" else 1
-                if self.row == starting_row:
+                # 2. Double step forward (only if first step is clear AND it hasn't moved)
+                if not self.has_moved:
                     double_row = self.row + (move_direction * 2)
                     if board[double_row][self.col] == 0:
                         valid_moves.append((double_row, self.col))
@@ -136,13 +137,23 @@ class Pawn(Piece): #special case of polymorphism
             if 0 <= front_row < 8 and 0 <= col < 8:
                 target_square = board[front_row][col]
                 # Can only move diagonally IF there is an enemy piece there
-                if target_square == 0:
-                    continue
-                else: # find which piece is occupying the target square
+                if target_square != 0:
+                    target_piece = None
                     for piece in pieces_arr:
                         if piece.alive and front_row == piece.row and col == piece.col:
                             target_piece = piece
-                    if target_piece.color != self.color:
+                            break
+                    if target_piece and target_piece.color != self.color:
                         valid_moves.append((front_row, col))
-                    
+                
+                # 4. En Passant
+                if target_square == 0 and last_move:
+                    lm_piece, lm_start, lm_end = last_move
+                    if lm_piece.__class__.__name__.lower() == "pawn" and lm_piece.color != self.color:
+                        # Check if last move was a double step
+                        if abs(lm_start[0] - lm_end[0]) == 2:
+                            # Check if the pawn landed next to us
+                            if lm_end[0] == self.row and lm_end[1] == col:
+                                valid_moves.append((front_row, col))
+                        
         return valid_moves

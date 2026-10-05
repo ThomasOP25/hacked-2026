@@ -95,6 +95,14 @@ def main():
     player_clicks = [] # [(row, col), (row, col)]
     valid_moves = []
     game_over = False
+    
+    last_move = None
+    halfmove_clock = 0
+    history = []
+
+    def get_board_hash(board):
+        # Create a simple string representation of the board state
+        return "".join([str(p) for row in board for p in row])
 
     while True:
         check = False
@@ -111,9 +119,25 @@ def main():
         legal_moves_for_turn = []
         for p in pieces_arr:
             if p.alive and p.color == turn:
-                legal_moves_for_turn += functions.get_strictly_legal_moves(king, p, board, pieces_arr)
+                legal_moves_for_turn += functions.get_strictly_legal_moves(king, p, board, pieces_arr, last_move)
         
+        # 3-Fold Repetition Check
+        board_hash = get_board_hash(board)
+        if len(player_clicks) == 0: # Only check at the start of a turn, before a click
+            history.append(board_hash)
+        
+        is_draw = False
+        if history.count(board_hash) >= 3:
+            is_draw = True
+            
+        if halfmove_clock >= 100:
+            is_draw = True
+            
         if len(legal_moves_for_turn) == 0:
+            game_over = True
+            is_draw = not check # if no legal moves and not in check -> draw
+
+        if is_draw:
             game_over = True
         
         for e in pygame.event.get():
@@ -139,7 +163,7 @@ def main():
                     start_coords = player_clicks[0]
                     if functions.check_start_position(turn, start_coords, pieces_arr):
                         piece = functions.get_piece(start_coords, pieces_arr)
-                        valid_moves = functions.get_strictly_legal_moves(king, piece, board, pieces_arr)
+                        valid_moves = functions.get_strictly_legal_moves(king, piece, board, pieces_arr, last_move)
                     else:
                         sq_selected = ()
                         player_clicks = []
@@ -151,7 +175,15 @@ def main():
                     
                     if functions.check_end_position(end_coords, valid_moves):
                         piece = functions.get_piece(start_coords, pieces_arr)
-                        dead_arr = functions.move_piece(start_coords, end_coords, board, piece, pieces_arr)
+                        
+                        # Reset 50-move rule if Pawn moves or capture happens
+                        if piece.__class__.__name__.lower() == "pawn" or board[end_coords[0]][end_coords[1]] != 0:
+                            halfmove_clock = 0
+                        else:
+                            halfmove_clock += 1
+                            
+                        dead_arr = functions.move_piece(start_coords, end_coords, board, piece, pieces_arr, last_move)
+                        last_move = (piece, start_coords, end_coords)
                         
                         # Handle Pawn Promotion (Auto-queen for now)
                         if piece.__class__.__name__.lower() == "pawn":

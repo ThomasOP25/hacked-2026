@@ -14,73 +14,6 @@ def make_board():
     board = [[0 for _ in range(cols)] for _ in range(rows)]
     return board
 
-
-def chess_pos_to_coords_dict():
-    """
-    Creates a dictionary  position in the form "<letter><number>" to matrix coordinates
-    in the form (<row>, <col>)
-    """
-    # Create a list of possible positions
-    pos_list = []
-    letters = ("a", "b", "c", "d", "e", "f", "g", "h")
-
-    for letter in letters:
-        for i in range(1, 9):
-            pos_list.append(f"{letter}{str(i)}")
-
-    # Map the list of positions to coordinates on the matrix
-    pos_dict = {}
-
-    for pos in pos_list:
-        letter = pos[0]
-        col = letters.index(letter)
-        row = 8 - int(pos[1])
-        pos_dict[pos] = (row, col)
-    return pos_dict
-
-
-def get_move():
-    """
-    Prompt the player for their move. This function calls itself recursively
-    until a valid move is entered.
-    """
-    move = input("Enter your move using chess postions e.g. \"a2 --> b3\" <starting position> <end position>: ") 
-    letters = ("a", "b", "c", "d", "e", "f", "g", "h")
-
-    # Run checks to make sure the move is valid
-    try:
-        a, b = move.split()
-        if len(a) != 2 or len(b) != 2:
-            raise ValueError
-        if a[0] not in letters or b[0] not in letters:
-            raise ValueError
-        if int(a[1]) not in range(1, 9) or int(b[1]) not in range(1, 9):
-            raise ValueError
-        if a == b:
-            raise ValueError
-    except ValueError:
-        print("Your move was entered in an invalid format.")
-        return get_move()
-    else:
-        print(f"Your input was entered in the correct format: {a} --> {b}.")
-        return (a, b)
-   
-
-def print_current_board(board):
-    print("-" * 33)
-    for i in range(len(board)):
-        print("|", end="")
-        for j in range(len(board[i]) - 1):
-            square = str(board[i][j])
-            print(square.center(3), end="")
-            print("|", end="")
-        j += 1
-        square = str(board[i][j])
-        print(square.center(3), end="")
-        print("|")
-        print("-" * 33)
-
-
 def initialize_pieces():
     wk = pieces.King(7, 4, "white")
     wq = pieces.Queen(7, 3, "white")
@@ -98,6 +31,7 @@ def initialize_pieces():
     wp6 = pieces.Pawn(6, 5, "white")
     wp7 = pieces.Pawn(6, 6, "white")
     wp8 = pieces.Pawn(6, 7, "white")
+    
     bk = pieces.King(0, 4, "black")
     bq = pieces.Queen(0, 3, "black")
     br1 = pieces.Rook(0, 0, "black")
@@ -121,11 +55,7 @@ def initialize_pieces():
   
     return pieces_arr
 
-
 def place_pieces(board, pieces_arr):
-    # Create a dictionary to convert the string representation of the
-    # piece type to a chess symbol in Unicode
-
     # Clear the board
     for row in range(8):
         for col in range(8):
@@ -138,30 +68,16 @@ def place_pieces(board, pieces_arr):
             piece_type = SYM_TO_EMOJI_DICT[str(piece)]
             board[row][col] = piece_type
 
-
-def chess_pos_to_mtx_coords(chess_pos: str, pos_dict: dict):
-    """
-    Returns tuple.
-    """
-    coords = pos_dict[chess_pos]
-    return coords
-
-
 def check_start_position(turn: str, start_coords: tuple, pieces_arr: list):
-    """
-    Ensures that the player's starting position contains one of their pieces.
-    """
     row = start_coords[0]
     col = start_coords[1]
 
-    # Check if any of the piece's current positions match with start_pos
     for piece in pieces_arr:
         if piece.alive:
             if piece.row == row and piece.col == col:
                 if piece.color == turn:
                     return True
     return False
-
 
 def get_piece(start_coords, pieces_arr):
     row = start_coords[0]
@@ -172,33 +88,55 @@ def get_piece(start_coords, pieces_arr):
             return piece
     return False
 
-
-def move_piece(start_coords, end_coords, board, piece, pieces_arr):
-    """
-    Moves a piece from one position to another. If the piece takes another,
-    the dead piece is added to an array.
-    """
-    # Mark captured piece as dead
+def move_piece(start_coords, end_coords, board, piece, pieces_arr, last_move=None):
     dead_arr = []
+    
+    start_row, start_col = start_coords
+    end_row, end_col = end_coords
+
+    # En Passant capture check
+    if piece.__class__.__name__.lower() == "pawn" and board[end_row][end_col] == 0 and start_col != end_col:
+        # We moved diagonally but the square was empty. This must be an En Passant!
+        for p in pieces_arr:
+            if p.row == start_row and p.col == end_col and p.alive:
+                p.alive = False
+                dead_arr.append(p)
+                board[p.row][p.col] = 0
+    
+    # Normal Capture check
     for p in pieces_arr:
-        if p.row == end_coords[0] and p.col == end_coords[1] and p != piece:
+        if p.row == end_row and p.col == end_col and p != piece and p.alive:
             p.alive = False
             dead_arr.append(p)
 
-    start_row = start_coords[0]
-    start_col = start_coords[1]
-    end_row = end_coords[0]
-    end_col = end_coords[1]
+    # Castling check (if King moves 2 squares horizontally)
+    if piece.__class__.__name__.lower() == "king" and abs(start_col - end_col) == 2:
+        # Move the rook
+        if end_col == 6: # Kingside
+            rook = get_piece((start_row, 7), pieces_arr)
+            if rook:
+                board[start_row][7] = 0
+                board[start_row][5] = SYM_TO_EMOJI_DICT[str(rook)]
+                rook.col = 5
+                rook.has_moved = True
+        elif end_col == 2: # Queenside
+            rook = get_piece((start_row, 0), pieces_arr)
+            if rook:
+                board[start_row][0] = 0
+                board[start_row][3] = SYM_TO_EMOJI_DICT[str(rook)]
+                rook.col = 3
+                rook.has_moved = True
 
+    # Move piece physically
     temp = board[start_row][start_col]
     board[start_row][start_col] = 0
     board[end_row][end_col] = temp
 
-    piece.row = end_coords[0]
-    piece.col = end_coords[1]
+    piece.row = end_row
+    piece.col = end_col
+    piece.has_moved = True
 
     return dead_arr
-
 
 def update_dead_list(dead_arr, dead_pieces_white, dead_pieces_black):
     for piece in dead_arr:
@@ -207,222 +145,94 @@ def update_dead_list(dead_arr, dead_pieces_white, dead_pieces_black):
         else:
             dead_pieces_black.append(piece)
 
-
 def check_end_position(end_coords: tuple, valid_moves: list):
-    if end_coords in valid_moves:
-        return True
-    else:
-        return False
+    return end_coords in valid_moves
 
-
-def promote_pawn(piece, board, pieces_arr):
-    """
-    Must pass piece of type "Pawn".
-    """
-    possible_choices = ("q", "r", "k", "b")
-    if piece.color == "white":
-        if piece.row == 0:
-            print("You can promote your pawn!")
-            promotion_piece = input("Choose a piece to promote to "
-                            "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
-            while promotion_piece not in possible_choices:
-                print("You can promote your pawn!")
-                promotion_piece = input("Choose a piece to promote to "
-                                "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
-            col = piece.col
-            if promotion_piece == "q":
-                promotion_piece = pieces.Queen(0, col, "white")
-            elif promotion_piece == "r":
-                promotion_piece = pieces.Rook(0, col, "white")
-            elif promotion_piece == "k":
-                promotion_piece = pieces.Knight(0, col, "white")
-            elif promotion_piece == "b":
-                promotion_piece = pieces.Bishop(0, col, "white")
-            
-            piece.alive = False
-            piece_type = SYM_TO_EMOJI_DICT[str(promotion_piece)]
-            board[0][col] = piece_type
-            pieces_arr.append(promotion_piece)
-
-    elif piece.color == "black":
-        if piece.row == 7:
-            print("You can promote your pawn!")
-            promotion_piece = input("Choose a piece to promote to "
-                            "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
-            while promotion_piece not in possible_choices:
-                print("You can promote your pawn!")
-                promotion_piece = input("Choose a piece to promote to "
-                                "(queen: \"q\", rook: \"r\", knight: \"k\", bishop: \"b\"): ")
-            col = piece.col
-            if promotion_piece == "q":
-                promotion_piece = pieces.Queen(7, col, "black")
-            elif promotion_piece == "r":
-                promotion_piece = pieces.Rook(7, col, "black")
-            elif promotion_piece == "k":
-                promotion_piece = pieces.Knight(7, col, "black")
-            elif promotion_piece == "b":
-                promotion_piece = pieces.Bishop(7, col, "black")
-                
-            piece.alive = False
-            piece_type = SYM_TO_EMOJI_DICT[str(piece)]
-            board[7][col] = piece_type
-            pieces_arr.append(promotion_piece)
-            
-def castle_ready(board, checks, king, pieces_arr):
-    ready_to_castle = False
-    for cords in checks:
-                if board[cords[0]][cords[1]] != "0":
-                    break
-                else:
-                    king.row = cords[0]
-                    king.col = cords[1]
-                    if not king_checked(board, king, pieces_arr):
-                        ready_to_castle = True
-    return ready_to_castle
-
-def develop_castle(turn, board, rook1, rook2, king, pieces_arr):
-    '''
-    Rules:
-    1. king and rooks must be on starting squares
-    2. king cannot be under attack
-    3. king cannot castle through a square that is under attack
-    '''
-    #Default Positions
-    black_rook1 = [0, 0]
-    black_rook2 = [0, 7]
-    white_rook1 = [7, 0]
-    white_rook2 = [7, 7]
-    black_king = [0, 4]
-    white_king = [7, 4]
-
-    #Default Statements for castling
-    can_castleL = False
-    can_castleR = False
-
-    if not king_checked(board, king, pieces_arr):
-        if turn == "White":
-            if king.row == white_king[0] and king.col == white_king[1] and (rook1.row == 7 and rook1.col == 0) or (rook2.row == 7 and rook2.col == 7):
-                #Run simulation to see if king can reach two spaces left or right without getting attacked.
-                orig_king = board[7][4]
-    
-                #Check left and right two spaces for safety
-                check_L = [[7,3], [7,2]]
-                check_R = [[7,5], [7,6]]
-    
-                #Simulate Castling to check for attacks
-                can_castleL = castle_ready(board, check_L, king, pieces_arr)
-                can_castleR = castle_ready(board, check_R, king, pieces_arr)
-                
-                #Reset Simulation
-                board[7][4] = king
-    
-                #Test messages
-                if can_castleL:
-                    print("Castled white left")
-                    board[7][2] = king
-                    board[7][3] = rook1
-                if can_castleR:
-                    print("Castled white right")
-                    board[7][6] = king
-                    board[7][5] = rook2
-                if not can_castleL and not can_castleR:
-                    print("Can't castle for white")
-        
-        if turn == "Black":
-            if king.row == black_king[0] and king.col == black_king[1] and (rook1.row == 0 and rook1.col == 0) or (rook2.row == 0 and rook2.col == 7):
-                #Run simulation to see if king can reach two spaces left or right without getting attacked.
-                orig_king = board[0][4]
-    
-                #Check left and right two spaces for safety
-                check_L = [[0,3], [0,2]]
-                check_R = [[0,5], [0,6]]
-    
-                #Simulate Castling to check for attacks
-                can_castleL = castle_ready(board, check_L, king, pieces_arr)
-                can_castleR = castle_ready(board, check_R, king, pieces_arr)
-    
-                #Reset Simulation
-                board[0][4] = king
-    
-                #Test messages
-                if can_castleL:
-                    print("Castled black left")
-                    board[0][2] = king
-                    board[0][3] = rook1
-                if can_castleR:
-                    print("Castled black right")
-                    board[0][6] = king
-                    board[0][5] = rook2
-                if not can_castleL and not can_castleR:
-                    print("Can't castle for black")
-    else:
-        print("King is checked. Cannot castle.")
-                    
 def king_checked(board, king, pieces_arr):
-    """
-    Returns True if the specified color's King is currently under attack.
-    """
     king_pos = (king.row, king.col)
-            
-    # Ask all alive enemy pieces if they can hit the King's coordinate
     enemy_color = "black" if king.color == "white" else "white"
     for piece in pieces_arr:
         if piece.alive and piece.color == enemy_color:
             enemy_moves = piece.get_valid_moves(board, pieces_arr)
             if king_pos in enemy_moves:
-                return True # Check!!!
-                
+                return True 
     return False
 
-
-def get_strictly_legal_moves(king, piece, board, pieces_arr):
-    """
-    Filters pseudo-legal moves by simulating them and checking for King safety.
-    """
-    pseudo_moves = piece.get_valid_moves(board, pieces_arr)
+def get_strictly_legal_moves(king, piece, board, pieces_arr, last_move=None):
+    pseudo_moves = piece.get_valid_moves(board, pieces_arr, last_move)
     legal_moves = []
     
     start_row = piece.row
     start_col = piece.col
     
+    # Check Castling moves if piece is king
+    if piece.__class__.__name__.lower() == "king" and not piece.has_moved:
+        if not king_checked(board, king, pieces_arr):
+            # Check Kingside (col 5, 6)
+            kingside_rook = get_piece((start_row, 7), pieces_arr)
+            if kingside_rook and kingside_rook.__class__.__name__.lower() == "rook" and not kingside_rook.has_moved:
+                if board[start_row][5] == 0 and board[start_row][6] == 0:
+                    # Check if passing through check
+                    piece.col = 5
+                    if not king_checked(board, king, pieces_arr):
+                        piece.col = 6
+                        if not king_checked(board, king, pieces_arr):
+                            pseudo_moves.append((start_row, 6))
+                    piece.col = start_col # restore
+
+            # Check Queenside (col 1, 2, 3)
+            queenside_rook = get_piece((start_row, 0), pieces_arr)
+            if queenside_rook and queenside_rook.__class__.__name__.lower() == "rook" and not queenside_rook.has_moved:
+                if board[start_row][1] == 0 and board[start_row][2] == 0 and board[start_row][3] == 0:
+                    # Check passing through
+                    piece.col = 3
+                    if not king_checked(board, king, pieces_arr):
+                        piece.col = 2
+                        if not king_checked(board, king, pieces_arr):
+                            pseudo_moves.append((start_row, 2))
+                    piece.col = start_col # restore
+
     for move in pseudo_moves:
         end_row, end_col = move
         
-        # Simulate the move
+        # Simulate move
         captured_piece = None
         for p in pieces_arr:
-            # Check if there's a piece at the target square that would be captured
             if p.alive and p.row == end_row and p.col == end_col:
                 captured_piece = p
                 captured_piece.alive = False 
                 break
 
-        # Update the piece's position
+        # Simulate En Passant Capture
+        ep_captured_piece = None
+        if piece.__class__.__name__.lower() == "pawn" and start_col != end_col and captured_piece is None:
+            for p in pieces_arr:
+                if p.alive and p.row == start_row and p.col == end_col:
+                    ep_captured_piece = p
+                    ep_captured_piece.alive = False
+                    break
+
         piece.row = end_row
         piece.col = end_col
         
-        # Remember the original board state to restore later
         temp_start_symbol = board[start_row][start_col]
         temp_end_symbol = board[end_row][end_col]
         
-        # Update the board to reflect the simulated move
         board[start_row][start_col] = 0
         board[end_row][end_col] = temp_start_symbol
         
-        # Check if the move leaves the player's own King in check
         if not king_checked(board, king, pieces_arr):
             legal_moves.append(move)
             
-        # Undo the simulated move
         board[start_row][start_col] = temp_start_symbol
         board[end_row][end_col] = temp_end_symbol
         
-        # Restore the piece's original position
         piece.row = start_row
         piece.col = start_col
         
-        # If a piece was captured in the simulation, restore it
         if captured_piece:
             captured_piece.alive = True
+        if ep_captured_piece:
+            ep_captured_piece.alive = True
             
     return legal_moves
