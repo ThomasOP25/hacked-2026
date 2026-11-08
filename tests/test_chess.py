@@ -423,7 +423,71 @@ class TestAI:
         assert -50 <= score <= 50
 
 
-# ─── Headless Pygame UI Tests ───────────────────────────────────────────────
+# ─── Headless Pygame UI & New Features Tests ─────────────────────────────────
+
+class TestNewFeatures:
+    def test_coordinate_flipping(self):
+        import chess
+        # Not flipped: (0, 0) -> (0, 0)
+        assert chess.board_to_screen(0, 0, False) == (0, 0)
+        assert chess.screen_to_board(0, 0, False) == (0, 0)
+        assert chess.board_to_screen(7, 4, False) == (7, 4)
+
+        # Flipped: (0, 0) -> (7, 7)
+        assert chess.board_to_screen(0, 0, True) == (7, 7)
+        assert chess.screen_to_board(7, 7, True) == (0, 0)
+        assert chess.board_to_screen(7, 4, True) == (0, 3)
+        assert chess.screen_to_board(0, 3, True) == (7, 4)
+
+    def test_undo_move_pvp(self):
+        gs = game_state.GameState()
+        # Move 1: e4
+        assert gs.make_move((6, 4), (4, 4)) is True
+        assert gs.turn == "black"
+        assert len(gs.fen_history) == 2
+        # Undo 1 move in PvP
+        assert gs.undo_move(against_ai=False) is True
+        assert gs.turn == "white"
+        assert len(gs.fen_history) == 1
+        p = functions.get_piece((6, 4), gs.pieces_arr)
+        assert p is not None and p.piece_type == "pawn"
+
+    def test_undo_move_against_ai(self):
+        gs = game_state.GameState()
+        # White human moves e4
+        assert gs.make_move((6, 4), (4, 4)) is True
+        # Black AI moves
+        assert gs.make_ai_move(1) is True
+        assert gs.turn == "white"
+        assert len(gs.fen_history) == 3
+        # Undo against AI should roll back 2 plies to White's initial turn
+        assert gs.undo_move(against_ai=True) is True
+        assert gs.turn == "white"
+        assert len(gs.fen_history) == 1
+
+    def test_clocks_and_time_control(self):
+        gs = game_state.GameState()
+        gs.set_time_control(60)
+        assert gs.white_time == 60.0
+        assert gs.black_time == 60.0
+
+        # Update clock by 1.5 seconds during White's turn
+        flagged = gs.update_clock(1.5)
+        assert flagged is False
+        assert abs(gs.white_time - 58.5) < 0.01
+        assert gs.black_time == 60.0
+
+        # Fast forward White's clock to 0
+        flagged = gs.update_clock(60.0)
+        assert flagged is True
+        assert gs.game_over is True
+        assert gs.timed_out_color == "white"
+
+    def test_get_evaluation(self):
+        gs = game_state.GameState()
+        score = gs.get_evaluation()
+        assert -60 <= score <= 60  # Initial board roughly balanced
+
 
 class TestPygameUI:
     def test_ui_headless_simulation(self):
@@ -454,11 +518,27 @@ class TestPygameUI:
         assert gs.make_move((6, 4), (4, 4)) is True
         assert gs.turn == "black"
 
-        # Render board and side panel
+        # Render board with Green theme (not flipped)
         screen.fill(pygame.Color('darkgray'))
-        chess.draw_board(screen, ui_font)
-        chess.draw_pieces(screen, gs.board)
-        chess.draw_panel(screen, gs, ui_font, True, 1)
+        chess.draw_eval_bar(screen, gs.get_evaluation(), False, ui_font)
+        chess.draw_board(screen, ui_font, 'Green', False)
+        chess.draw_pieces(screen, gs.board, False)
+        buttons = chess.draw_panel(
+            screen, gs, ui_font, True, 1, 'white', 'Green', True, False
+        )
+        assert 'undo' in buttons
+        assert 'flip' in buttons
+        assert 'side' in buttons
+        assert 'theme' in buttons
+
+        # Render board flipped (playing as Black) with Wood theme
+        screen.fill(pygame.Color('darkgray'))
+        chess.draw_eval_bar(screen, gs.get_evaluation(), True, ui_font)
+        chess.draw_board(screen, ui_font, 'Wood', True)
+        chess.draw_pieces(screen, gs.board, True)
+        chess.draw_panel(
+            screen, gs, ui_font, True, 1, 'black', 'Wood', True, True
+        )
 
         # 3. Promotion pending modal render
         gs_promo = chess.GameState.from_fen("k7/4P3/8/8/8/8/8/4K3 w - - 0 1")

@@ -5,13 +5,15 @@ import pieces
 import download_assets
 from game_state import GameState
 import config
+import sounds
 
 # Ensure image assets exist before GUI init
 download_assets.ensure_assets()
 
 pygame.init()
+sounds.init_sounds()
 
-PIECE_IMAGES = {}
+PIECE_IMAGES: dict[str, pygame.Surface] = {}
 
 def load_images() -> None:
     asset_map = {
@@ -25,7 +27,7 @@ def load_images() -> None:
         try:
             img = pygame.image.load(f"assets/images/{filename}.png")
             surf = pygame.transform.smoothscale(img, (config.SQ_SIZE, config.SQ_SIZE))
-            surf_small = pygame.transform.smoothscale(img, (26, 26))
+            surf_small = pygame.transform.smoothscale(img, (24, 24))
             PIECE_IMAGES[symbol] = surf
             PIECE_IMAGES[filename] = surf
             PIECE_IMAGES[f"{symbol}_small"] = surf_small
@@ -33,67 +35,138 @@ def load_images() -> None:
         except Exception as e:
             print(f"Error loading image {filename}: {e}")
 
-def draw_board(screen: pygame.Surface, font: pygame.font.Font) -> None:
-    colors = [config.COLOR_LIGHT, config.COLOR_DARK]
-    for row in range(config.DIMENSION):
-        for col in range(config.DIMENSION):
-            color = colors[((row + col) % 2)]
-            pygame.draw.rect(screen, color, pygame.Rect(config.MARGIN_LEFT + col*config.SQ_SIZE, row*config.SQ_SIZE, config.SQ_SIZE, config.SQ_SIZE))
-            
-    text_color = pygame.Color('black')
-    for r in range(config.DIMENSION):
-        rank_text = font.render(str(8 - r), True, text_color)
-        screen.blit(rank_text, (config.MARGIN_LEFT // 4, r * config.SQ_SIZE + config.SQ_SIZE // 2 - rank_text.get_height() // 2))
-        
-    files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-    for c in range(config.DIMENSION):
-        file_text = font.render(files[c], True, text_color)
-        screen.blit(file_text, (config.MARGIN_LEFT + c * config.SQ_SIZE + config.SQ_SIZE // 2 - file_text.get_width() // 2, config.DIMENSION * config.SQ_SIZE + 5))
+def board_to_screen(row: int, col: int, flipped: bool) -> tuple[int, int]:
+    return (7 - row, 7 - col) if flipped else (row, col)
 
-def draw_highlights(screen: pygame.Surface, selected_sq: tuple[int, int] | None, valid_moves: list[tuple[int, int]], last_move: tuple | None, king_in_check_sq: tuple[int, int] | None) -> None:
+def screen_to_board(s_row: int, s_col: int, flipped: bool) -> tuple[int, int]:
+    return (7 - s_row, 7 - s_col) if flipped else (s_row, s_col)
+
+def draw_eval_bar(screen: pygame.Surface, eval_score: int, flipped: bool, font: pygame.font.Font) -> None:
+    bar_x = 8
+    bar_y = 0
+    bar_w = config.EVAL_BAR_WIDTH
+    bar_h = config.DIMENSION * config.SQ_SIZE
+
+    # Clamp evaluation between -1000 and +1000 centipawns
+    clamped = max(-1000, min(1000, eval_score))
+    # 0 = Black winning, 1 = White winning
+    white_ratio = 0.5 + (clamped / 2000.0)
+    
+    # If flipped, player is Black (Black on bottom, White on top)
+    bottom_ratio = (1.0 - white_ratio) if flipped else white_ratio
+    bottom_h = int(bar_h * bottom_ratio)
+    top_h = bar_h - bottom_h
+    
+    top_color = (245, 245, 245) if flipped else (45, 45, 50)
+    bottom_color = (45, 45, 50) if flipped else (245, 245, 245)
+    
+    pygame.draw.rect(screen, top_color, pygame.Rect(bar_x, bar_y, bar_w, top_h))
+    pygame.draw.rect(screen, bottom_color, pygame.Rect(bar_x, bar_y + top_h, bar_w, bottom_h))
+    pygame.draw.rect(screen, (80, 85, 95), pygame.Rect(bar_x, bar_y, bar_w, bar_h), 1)
+
+def draw_board(screen: pygame.Surface, font: pygame.font.Font, theme_name: str, flipped: bool) -> None:
+    light_color, dark_color = config.THEMES.get(theme_name, config.THEMES[config.DEFAULT_THEME])
+    
+    for s_row in range(config.DIMENSION):
+        for s_col in range(config.DIMENSION):
+            b_row, b_col = screen_to_board(s_row, s_col, flipped)
+            color = light_color if ((b_row + b_col) % 2 == 0) else dark_color
+            sq_rect = pygame.Rect(config.MARGIN_LEFT + s_col * config.SQ_SIZE, s_row * config.SQ_SIZE, config.SQ_SIZE, config.SQ_SIZE)
+            pygame.draw.rect(screen, color, sq_rect)
+            
+    # Rank labels (numbers)
+    text_color = pygame.Color('black')
+    for s_r in range(config.DIMENSION):
+        b_r, _ = screen_to_board(s_r, 0, flipped)
+        rank_str = str(8 - b_r)
+        rank_text = font.render(rank_str, True, text_color)
+        screen.blit(rank_text, (config.MARGIN_LEFT - 16, s_r * config.SQ_SIZE + config.SQ_SIZE // 2 - rank_text.get_height() // 2))
+        
+    # File labels (letters)
+    files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    for s_c in range(config.DIMENSION):
+        _, b_c = screen_to_board(0, s_c, flipped)
+        file_text = font.render(files[b_c], True, text_color)
+        screen.blit(file_text, (config.MARGIN_LEFT + s_c * config.SQ_SIZE + config.SQ_SIZE // 2 - file_text.get_width() // 2, config.DIMENSION * config.SQ_SIZE + 5))
+
+def draw_highlights(screen: pygame.Surface, selected_sq: tuple[int, int] | None, valid_moves: list[tuple[int, int]], last_move: tuple | None, king_in_check_sq: tuple[int, int] | None, gs: GameState, flipped: bool) -> None:
     if last_move:
         _, start, end = last_move
         s = pygame.Surface((config.SQ_SIZE, config.SQ_SIZE))
         s.set_alpha(100)
         s.fill(config.COLOR_LAST_MOVE)
-        screen.blit(s, (config.MARGIN_LEFT + start[1]*config.SQ_SIZE, start[0]*config.SQ_SIZE))
-        screen.blit(s, (config.MARGIN_LEFT + end[1]*config.SQ_SIZE, end[0]*config.SQ_SIZE))
+        sr1, sc1 = board_to_screen(start[0], start[1], flipped)
+        sr2, sc2 = board_to_screen(end[0], end[1], flipped)
+        screen.blit(s, (config.MARGIN_LEFT + sc1 * config.SQ_SIZE, sr1 * config.SQ_SIZE))
+        screen.blit(s, (config.MARGIN_LEFT + sc2 * config.SQ_SIZE, sr2 * config.SQ_SIZE))
         
     if king_in_check_sq:
         s = pygame.Surface((config.SQ_SIZE, config.SQ_SIZE))
         s.set_alpha(150)
         s.fill(config.COLOR_CHECK)
-        screen.blit(s, (config.MARGIN_LEFT + king_in_check_sq[1]*config.SQ_SIZE, king_in_check_sq[0]*config.SQ_SIZE))
+        kr, kc = board_to_screen(king_in_check_sq[0], king_in_check_sq[1], flipped)
+        screen.blit(s, (config.MARGIN_LEFT + kc * config.SQ_SIZE, kr * config.SQ_SIZE))
 
     if selected_sq:
-        row, col = selected_sq
+        b_row, b_col = selected_sq
+        sr, sc = board_to_screen(b_row, b_col, flipped)
         s = pygame.Surface((config.SQ_SIZE, config.SQ_SIZE))
-        s.set_alpha(100)
+        s.set_alpha(120)
         s.fill(config.COLOR_HIGHLIGHT)
-        screen.blit(s, (config.MARGIN_LEFT + col*config.SQ_SIZE, row*config.SQ_SIZE))
+        screen.blit(s, (config.MARGIN_LEFT + sc * config.SQ_SIZE, sr * config.SQ_SIZE))
+        
         for mr, mc in valid_moves:
-            pygame.draw.circle(screen, config.COLOR_HIGHLIGHT, (config.MARGIN_LEFT + mc*config.SQ_SIZE + config.SQ_SIZE//2, mr*config.SQ_SIZE + config.SQ_SIZE//2), config.SQ_SIZE//6)
+            smr, smc = board_to_screen(mr, mc, flipped)
+            center_x = config.MARGIN_LEFT + smc * config.SQ_SIZE + config.SQ_SIZE // 2
+            center_y = smr * config.SQ_SIZE + config.SQ_SIZE // 2
+            target_piece = functions.get_piece((mr, mc), gs.pieces_arr)
+            if target_piece and target_piece.color != gs.turn:
+                # Target square has an enemy piece: Draw capture ring
+                pygame.draw.circle(screen, config.COLOR_HIGHLIGHT, (center_x, center_y), config.SQ_SIZE // 2 - 2, 4)
+            else:
+                # Quiet move: Small solid dot
+                pygame.draw.circle(screen, config.COLOR_HIGHLIGHT, (center_x, center_y), config.SQ_SIZE // 6)
 
-def draw_pieces(screen: pygame.Surface, board: list[list]) -> None:
-    for row in range(config.DIMENSION):
-        for col in range(config.DIMENSION):
-            piece = board[row][col]
+def draw_pieces(screen: pygame.Surface, board: list[list], flipped: bool) -> None:
+    for b_row in range(config.DIMENSION):
+        for b_col in range(config.DIMENSION):
+            piece = board[b_row][b_col]
             if piece != 0 and piece in PIECE_IMAGES:
-                screen.blit(PIECE_IMAGES[piece], pygame.Rect(config.MARGIN_LEFT + col*config.SQ_SIZE, row*config.SQ_SIZE, config.SQ_SIZE, config.SQ_SIZE))
+                sr, sc = board_to_screen(b_row, b_col, flipped)
+                screen.blit(PIECE_IMAGES[piece], pygame.Rect(config.MARGIN_LEFT + sc * config.SQ_SIZE, sr * config.SQ_SIZE, config.SQ_SIZE, config.SQ_SIZE))
 
-def draw_panel(screen: pygame.Surface, gs: GameState, font: pygame.font.Font, ai_enabled: bool, ai_depth: int) -> tuple[pygame.Rect, pygame.Rect, pygame.Rect]:
+def format_clock(seconds: float) -> str:
+    secs = max(0, int(seconds))
+    mins = secs // 60
+    rem = secs % 60
+    return f"{mins:02d}:{rem:02d}"
+
+def draw_panel(
+    screen: pygame.Surface, gs: GameState, font: pygame.font.Font,
+    ai_enabled: bool, ai_depth: int, player_color: str,
+    theme_name: str, sound_on: bool, flipped: bool,
+    review_idx: int | None = None
+) -> dict[str, pygame.Rect]:
     panel_rect = pygame.Rect(config.MARGIN_LEFT + config.DIMENSION * config.SQ_SIZE, 0, config.PANEL_WIDTH, config.HEIGHT)
-    pygame.draw.rect(screen, (40, 44, 52), panel_rect)
+    pygame.draw.rect(screen, (36, 40, 48), panel_rect)
+    buttons = {}
     
-    # Header Status
+    # 1. Header Status
     if gs.game_over:
-        if gs.is_draw:
+        if gs.timed_out_color:
+            winner = "Black" if gs.timed_out_color == "white" else "White"
+            status_text = f"{winner} Wins (Time)"
+            status_color = (255, 120, 120)
+        elif gs.is_draw:
             status_text = "Draw (Stalemate)"
             status_color = (255, 215, 0)
         else:
             winner = "Black" if gs.turn == "white" else "White"
             status_text = f"{winner} Wins!"
             status_color = (100, 255, 100)
+    elif review_idx is not None:
+        status_text = f"Reviewing ({review_idx}/{len(gs.fen_history)-1})"
+        status_color = (140, 200, 255)
     elif gs.check:
         status_text = f"{gs.turn.capitalize()} in Check!"
         status_color = (255, 100, 100)
@@ -104,95 +177,133 @@ def draw_panel(screen: pygame.Surface, gs: GameState, font: pygame.font.Font, ai
     status_surf = font.render(status_text, True, status_color)
     screen.blit(status_surf, (panel_rect.x + 12, 12))
     
-    # Subtitle / Move count
-    move_info = f"Move {gs.fullmove_number}"
-    sub_surf = pygame.font.SysFont("Arial", 12).render(move_info, True, (170, 178, 190))
+    # Mode and sub-info
+    mode_str = f"Mode: {'PvP' if not ai_enabled else ('AI Depth ' + str(ai_depth))}"
+    sub_surf = pygame.font.SysFont("Arial", 11).render(mode_str, True, (160, 170, 185))
     screen.blit(sub_surf, (panel_rect.x + 12, 34))
 
-    # Captured White Pieces (captured by Black)
-    cap_title_w = pygame.font.SysFont("Arial", 11, True).render("CAPTURED WHITE", True, (150, 150, 150))
-    screen.blit(cap_title_w, (panel_rect.x + 12, 54))
-    x_offset, y_offset = 12, 70
-    for dp in gs.dead_white:
-        sym = functions.SYM_TO_EMOJI_DICT[str(dp)]
-        if f"{sym}_small" in PIECE_IMAGES:
-            screen.blit(PIECE_IMAGES[f"{sym}_small"], (panel_rect.x + x_offset, y_offset))
-        x_offset += 20
-        if x_offset > config.PANEL_WIDTH - 30:
-            x_offset = 12
-            y_offset += 26
-            
-    # Captured Black Pieces (captured by White)
-    cap_title_b = pygame.font.SysFont("Arial", 11, True).render("CAPTURED BLACK", True, (150, 150, 150))
-    screen.blit(cap_title_b, (panel_rect.x + 12, 130))
-    x_offset, y_offset = 12, 146
-    for dp in gs.dead_black:
-        sym = functions.SYM_TO_EMOJI_DICT[str(dp)]
-        if f"{sym}_small" in PIECE_IMAGES:
-            screen.blit(PIECE_IMAGES[f"{sym}_small"], (panel_rect.x + x_offset, y_offset))
-        x_offset += 20
-        if x_offset > config.PANEL_WIDTH - 30:
-            x_offset = 12
-            y_offset += 26
+    # 2. Clocks (if time control active)
+    clock_y = 54
+    if gs.time_control > 0:
+        top_color = "black" if not flipped else "white"
+        bot_color = "white" if not flipped else "black"
+        top_time = gs.black_time if not flipped else gs.white_time
+        bot_time = gs.white_time if not flipped else gs.black_time
+        
+        top_box = pygame.Rect(panel_rect.x + 10, clock_y, 105, 28)
+        bot_box = pygame.Rect(panel_rect.right - 115, clock_y, 105, 28)
+        
+        # Draw top clock
+        is_top_turn = (gs.turn == top_color and not gs.game_over)
+        pygame.draw.rect(screen, (55, 62, 75) if is_top_turn else (42, 46, 56), top_box, border_radius=4)
+        pygame.draw.rect(screen, (100, 160, 240) if is_top_turn else (70, 75, 85), top_box, 1, border_radius=4)
+        top_txt = pygame.font.SysFont("Arial", 14, True).render(f"{top_color[0].upper()}: {format_clock(top_time)}", True, (255, 100, 100) if top_time < 30 else (240, 240, 240))
+        screen.blit(top_txt, top_txt.get_rect(center=top_box.center))
 
-    # Recent Move History
-    history_box = pygame.Rect(panel_rect.x + 10, 210, config.PANEL_WIDTH - 20, 175)
-    pygame.draw.rect(screen, (30, 33, 40), history_box, border_radius=6)
-    pygame.draw.rect(screen, (60, 65, 75), history_box, 1, border_radius=6)
+        # Draw bottom clock
+        is_bot_turn = (gs.turn == bot_color and not gs.game_over)
+        pygame.draw.rect(screen, (55, 62, 75) if is_bot_turn else (42, 46, 56), bot_box, border_radius=4)
+        pygame.draw.rect(screen, (100, 160, 240) if is_bot_turn else (70, 75, 85), bot_box, 1, border_radius=4)
+        bot_txt = pygame.font.SysFont("Arial", 14, True).render(f"{bot_color[0].upper()}: {format_clock(bot_time)}", True, (255, 100, 100) if bot_time < 30 else (240, 240, 240))
+        screen.blit(bot_txt, bot_txt.get_rect(center=bot_box.center))
+        clock_y += 34
+
+    # 3. Captured Pieces
+    cap_y = clock_y
+    x_offset, y_offset = 12, cap_y
+    for dp in (gs.dead_black if not flipped else gs.dead_white):
+        sym = functions.SYM_TO_EMOJI_DICT[str(dp)]
+        if f"{sym}_small" in PIECE_IMAGES:
+            screen.blit(PIECE_IMAGES[f"{sym}_small"], (panel_rect.x + x_offset, y_offset))
+        x_offset += 18
+        if x_offset > config.PANEL_WIDTH - 25:
+            x_offset = 12
+            y_offset += 22
+
+    # 4. Interactive Move History Log
+    hist_top = cap_y + 36
+    history_box = pygame.Rect(panel_rect.x + 10, hist_top, config.PANEL_WIDTH - 20, 150)
+    pygame.draw.rect(screen, (28, 31, 38), history_box, border_radius=6)
+    pygame.draw.rect(screen, (55, 60, 72), history_box, 1, border_radius=6)
     
-    hist_title = pygame.font.SysFont("Arial", 11, True).render("MOVE HISTORY", True, (160, 170, 185))
+    hist_title = pygame.font.SysFont("Arial", 11, True).render("MOVE HISTORY", True, (150, 160, 175))
     screen.blit(hist_title, (history_box.x + 8, history_box.y + 6))
     
-    # Render last 6 moves
-    log_font = pygame.font.SysFont("Arial", 12)
-    start_idx = max(0, len(gs.move_log) - 10)
-    recent = gs.move_log[start_idx:]
-    
-    # Pair moves: "1. e4 e5", "2. Nf3 Nc6"
+    # Display recent moves
+    log_font = pygame.font.SysFont("Arial", 11)
     lines = []
     i = 0
-    while i < len(recent):
-        abs_move_idx = start_idx + i
-        move_num = (abs_move_idx // 2) + 1
-        if abs_move_idx % 2 == 0:
-            # White move
-            w_move = recent[i]
-            b_move = recent[i+1] if (i + 1 < len(recent)) else ""
-            lines.append(f"{move_num}. {w_move}  {b_move}".strip())
-            i += 2
-        else:
-            # Started on Black move
-            lines.append(f"{move_num}... {recent[i]}")
-            i += 1
-            
-    y_line = history_box.y + 26
-    for line in lines[-6:]:
-        line_surf = log_font.render(line, True, (220, 225, 230))
+    while i < len(gs.move_log):
+        move_num = (i // 2) + 1
+        w_move = gs.move_log[i]
+        b_move = gs.move_log[i+1] if (i + 1 < len(gs.move_log)) else ""
+        lines.append(f"{move_num}. {w_move}  {b_move}".strip())
+        i += 2
+        
+    y_line = history_box.y + 24
+    for line in lines[-5:]:
+        line_surf = log_font.render(line, True, (215, 220, 225))
         screen.blit(line_surf, (history_box.x + 10, y_line))
         y_line += 22
 
-    # Bottom Control Buttons
+    # 5. Buttons: Undo, Flip Board, Side / Mode, Theme, Sound, Restart
     btn_x = panel_rect.x + 10
     btn_w = config.PANEL_WIDTH - 20
-    btn_h = 34
+    b_y = hist_top + 160
     
-    btn_ai_toggle = pygame.Rect(btn_x, config.HEIGHT - 135, btn_w, btn_h)
-    ai_btn_color = (60, 120, 180) if ai_enabled else (85, 90, 100)
-    pygame.draw.rect(screen, ai_btn_color, btn_ai_toggle, border_radius=6)
-    toggle_text = font.render(f"AI: {'ON' if ai_enabled else 'OFF'}", True, pygame.Color('white'))
-    screen.blit(toggle_text, toggle_text.get_rect(center=btn_ai_toggle.center))
-    
-    btn_ai_depth = pygame.Rect(btn_x, config.HEIGHT - 92, btn_w, btn_h)
-    pygame.draw.rect(screen, (70, 80, 95), btn_ai_depth, border_radius=6)
-    depth_text = font.render(f"AI Depth: {ai_depth}", True, pygame.Color('white'))
-    screen.blit(depth_text, depth_text.get_rect(center=btn_ai_depth.center))
-    
-    btn_restart = pygame.Rect(btn_x, config.HEIGHT - 49, btn_w, btn_h)
-    pygame.draw.rect(screen, (180, 60, 60), btn_restart, border_radius=6)
-    restart_text = font.render("Restart Game", True, pygame.Color('white'))
-    screen.blit(restart_text, restart_text.get_rect(center=btn_restart.center))
-    
-    return btn_ai_toggle, btn_ai_depth, btn_restart
+    # Row 1: Side selection & Flip Board
+    b1_w = (btn_w - 6) // 2
+    btn_side = pygame.Rect(btn_x, b_y, b1_w, 28)
+    pygame.draw.rect(screen, (60, 70, 85), btn_side, border_radius=4)
+    side_lbl = "Side: White" if player_color == 'white' else ("Side: Black" if player_color == 'black' else "Side: 2P")
+    s_txt = pygame.font.SysFont("Arial", 11, True).render(side_lbl, True, (240, 240, 240))
+    screen.blit(s_txt, s_txt.get_rect(center=btn_side.center))
+    buttons['side'] = btn_side
+
+    btn_flip = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
+    pygame.draw.rect(screen, (60, 70, 85), btn_flip, border_radius=4)
+    f_txt = pygame.font.SysFont("Arial", 11, True).render("Flip (F)", True, (240, 240, 240))
+    screen.blit(f_txt, f_txt.get_rect(center=btn_flip.center))
+    buttons['flip'] = btn_flip
+
+    b_y += 33
+    # Row 2: Undo Move & AI Toggle
+    btn_undo = pygame.Rect(btn_x, b_y, b1_w, 28)
+    pygame.draw.rect(screen, (75, 85, 100), btn_undo, border_radius=4)
+    u_txt = pygame.font.SysFont("Arial", 11, True).render("Undo (U)", True, (240, 240, 240))
+    screen.blit(u_txt, u_txt.get_rect(center=btn_undo.center))
+    buttons['undo'] = btn_undo
+
+    btn_ai = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
+    ai_col = (55, 115, 175) if ai_enabled else (70, 75, 85)
+    pygame.draw.rect(screen, ai_col, btn_ai, border_radius=4)
+    ai_txt = pygame.font.SysFont("Arial", 11, True).render(f"AI: {'ON' if ai_enabled else 'OFF'}", True, (240, 240, 240))
+    screen.blit(ai_txt, ai_txt.get_rect(center=btn_ai.center))
+    buttons['ai_toggle'] = btn_ai
+
+    b_y += 33
+    # Row 3: Theme & Sound
+    btn_theme = pygame.Rect(btn_x, b_y, b1_w, 28)
+    pygame.draw.rect(screen, (60, 70, 85), btn_theme, border_radius=4)
+    th_txt = pygame.font.SysFont("Arial", 11, True).render(f"Theme: {theme_name}", True, (240, 240, 240))
+    screen.blit(th_txt, th_txt.get_rect(center=btn_theme.center))
+    buttons['theme'] = btn_theme
+
+    btn_sound = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
+    pygame.draw.rect(screen, (60, 70, 85), btn_sound, border_radius=4)
+    snd_txt = pygame.font.SysFont("Arial", 11, True).render(f"Audio: {'ON' if sound_on else 'OFF'}", True, (240, 240, 240))
+    screen.blit(snd_txt, snd_txt.get_rect(center=btn_sound.center))
+    buttons['sound'] = btn_sound
+
+    b_y += 33
+    # Row 4: Restart Game
+    btn_restart = pygame.Rect(btn_x, b_y, btn_w, 28)
+    pygame.draw.rect(screen, (170, 60, 60), btn_restart, border_radius=4)
+    rst_txt = pygame.font.SysFont("Arial", 12, True).render("New / Restart Game", True, pygame.Color('white'))
+    screen.blit(rst_txt, rst_txt.get_rect(center=btn_restart.center))
+    buttons['restart'] = btn_restart
+
+    return buttons
 
 def main() -> None:
     screen = pygame.display.set_mode((config.WIDTH, config.HEIGHT))
@@ -201,13 +312,16 @@ def main() -> None:
     
     load_images()
     
-    ui_font = pygame.font.SysFont("Arial", 16, True)
-    large_font = pygame.font.SysFont("Arial", 30, True)
+    ui_font = pygame.font.SysFont("Arial", 15, True)
+    large_font = pygame.font.SysFont("Arial", 28, True)
 
     gs = GameState()
     AI_ENABLED = True
-    AI_COLOR = "black"
     ai_depth = 2
+    player_color = "white" # 'white', 'black', or '2player'
+    flipped = False
+    current_theme = config.DEFAULT_THEME
+    review_idx: int | None = None # None means live game
 
     sq_selected = ()
     player_clicks = []
@@ -215,36 +329,109 @@ def main() -> None:
     btn_game_over_restart = pygame.Rect(0, 0, 0, 0)
 
     while True:
-        # AI Move logic
-        if not gs.game_over and AI_ENABLED and gs.turn == AI_COLOR and not gs.promotion_pending:
-            gs.make_ai_move(ai_depth)
+        dt = clock.tick(config.MAX_FPS) / 1000.0
+
+        # Update chess clocks
+        if gs.update_clock(dt):
+            sounds.play_game_over()
+
+        # AI Turn trigger
+        ai_color = "black" if player_color == "white" else ("white" if player_color == "black" else None)
+        if not gs.game_over and AI_ENABLED and ai_color and gs.turn == ai_color and not gs.promotion_pending:
+            prev_board_piece_count = sum(1 for p in gs.pieces_arr if p.alive)
+            moved = gs.make_ai_move(ai_depth)
+            if moved:
+                curr_piece_count = sum(1 for p in gs.pieces_arr if p.alive)
+                if curr_piece_count < prev_board_piece_count:
+                    sounds.play_capture()
+                elif gs.check:
+                    sounds.play_check()
+                else:
+                    sounds.play_move()
             sq_selected = ()
             player_clicks = []
             valid_moves_for_sq = []
-            
+
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
                 
             elif e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_1: ai_depth = 1
-                elif e.key == pygame.K_2: ai_depth = 2
-                elif e.key == pygame.K_3: ai_depth = 3
-            
+                # Key shortcuts
+                if e.key == pygame.K_f:
+                    flipped = not flipped
+                elif e.key == pygame.K_u:
+                    # Undo move
+                    gs.undo_move(against_ai=(player_color in ['white', 'black'] and AI_ENABLED))
+                    sq_selected = ()
+                    player_clicks = []
+                    valid_moves_for_sq = []
+                elif e.key == pygame.K_m:
+                    sounds.toggle_sound()
+                elif e.key == pygame.K_t:
+                    themes_list = list(config.THEMES.keys())
+                    current_theme = themes_list[(themes_list.index(current_theme) + 1) % len(themes_list)]
+                elif e.key == pygame.K_LEFT:
+                    # Step back in review
+                    if review_idx is None:
+                        review_idx = max(0, len(gs.fen_history) - 2)
+                    else:
+                        review_idx = max(0, review_idx - 1)
+                elif e.key == pygame.K_RIGHT:
+                    if review_idx is not None:
+                        review_idx += 1
+                        if review_idx >= len(gs.fen_history) - 1:
+                            review_idx = None # return to live
+                elif e.key == pygame.K_ESCAPE:
+                    review_idx = None
+
             elif e.type == pygame.MOUSEBUTTONDOWN:
                 location = pygame.mouse.get_pos()
                 
-                # Check UI Panel buttons
+                # Side Panel Button clicks
                 panel_rect = pygame.Rect(config.MARGIN_LEFT + config.DIMENSION * config.SQ_SIZE, 0, config.PANEL_WIDTH, config.HEIGHT)
                 if location[0] >= panel_rect.x:
-                    btn_ai_toggle, btn_ai_depth, btn_restart = draw_panel(screen, gs, ui_font, AI_ENABLED, ai_depth)
-                    if btn_ai_toggle.collidepoint(location):
+                    buttons = draw_panel(
+                        screen, gs, ui_font, AI_ENABLED, ai_depth,
+                        player_color, current_theme, sounds.sound_enabled, flipped, review_idx
+                    )
+                    if buttons['flip'].collidepoint(location):
+                        flipped = not flipped
+                    elif buttons['undo'].collidepoint(location):
+                        gs.undo_move(against_ai=(player_color in ['white', 'black'] and AI_ENABLED))
+                        sq_selected = ()
+                        player_clicks = []
+                        valid_moves_for_sq = []
+                    elif buttons['ai_toggle'].collidepoint(location):
                         AI_ENABLED = not AI_ENABLED
-                    elif btn_ai_depth.collidepoint(location):
-                        ai_depth = (ai_depth % 3) + 1
-                    elif btn_restart.collidepoint(location):
+                    elif buttons['theme'].collidepoint(location):
+                        themes_list = list(config.THEMES.keys())
+                        current_theme = themes_list[(themes_list.index(current_theme) + 1) % len(themes_list)]
+                    elif buttons['sound'].collidepoint(location):
+                        sounds.toggle_sound()
+                    elif buttons['side'].collidepoint(location):
+                        # Cycle side: White -> Black -> 2Player -> White
+                        if player_color == 'white':
+                            player_color = 'black'
+                            flipped = True
+                            AI_ENABLED = True
+                        elif player_color == 'black':
+                            player_color = '2player'
+                            flipped = False
+                            AI_ENABLED = False
+                        else:
+                            player_color = 'white'
+                            flipped = False
+                            AI_ENABLED = True
                         gs.reset()
+                        review_idx = None
+                        sq_selected = ()
+                        player_clicks = []
+                        valid_moves_for_sq = []
+                    elif buttons['restart'].collidepoint(location):
+                        gs.reset()
+                        review_idx = None
                         sq_selected = ()
                         player_clicks = []
                         valid_moves_for_sq = []
@@ -252,15 +439,23 @@ def main() -> None:
                     
                 if gs.game_over and btn_game_over_restart.collidepoint(location):
                     gs.reset()
+                    review_idx = None
                     sq_selected = ()
                     player_clicks = []
                     valid_moves_for_sq = []
                     continue
                     
-                if gs.game_over or (AI_ENABLED and gs.turn == AI_COLOR):
+                # Block board interaction if AI's turn or game over
+                is_player_turn = True
+                if player_color == 'white' and gs.turn != 'white':
+                    is_player_turn = False
+                elif player_color == 'black' and gs.turn != 'black':
+                    is_player_turn = False
+                    
+                if gs.game_over or not is_player_turn or review_idx is not None:
                     continue
                     
-                # Handle Promotion UI clicks
+                # Promotion Modal clicks
                 if gs.promotion_pending:
                     menu_w, menu_h = 320, 130
                     menu_rect = pygame.Rect(config.WIDTH//2 - menu_w//2, config.HEIGHT//2 - menu_h//2, menu_w, menu_h)
@@ -269,22 +464,25 @@ def main() -> None:
                         tile_rect = pygame.Rect(menu_rect.x + 16 + i * 72, menu_rect.y + 40, 68, 76)
                         if tile_rect.collidepoint(location):
                             gs.complete_promotion(full_name)
+                            sounds.play_move()
                             break
                     continue
                     
-                # Handle Board clicks
-                col = (location[0] - config.MARGIN_LEFT) // config.SQ_SIZE
-                row = location[1] // config.SQ_SIZE
+                # Board clicks
+                s_col = (location[0] - config.MARGIN_LEFT) // config.SQ_SIZE
+                s_row = location[1] // config.SQ_SIZE
                 
-                if not (0 <= col < config.DIMENSION and 0 <= row < config.DIMENSION):
+                if not (0 <= s_col < config.DIMENSION and 0 <= s_row < config.DIMENSION):
                     continue 
                 
-                if sq_selected == (row, col):
+                b_row, b_col = screen_to_board(s_row, s_col, flipped)
+                
+                if sq_selected == (b_row, b_col):
                     sq_selected = ()
                     player_clicks = []
                     valid_moves_for_sq = []
                 else:
-                    sq_selected = (row, col)
+                    sq_selected = (b_row, b_col)
                     player_clicks.append(sq_selected)
                 
                 if len(player_clicks) == 1:
@@ -302,25 +500,53 @@ def main() -> None:
                     end_coords = player_clicks[1]
                     
                     if end_coords in valid_moves_for_sq:
-                        gs.make_move(start_coords, end_coords)
-                            
+                        is_cap = (gs.board[end_coords[0]][end_coords[1]] != 0)
+                        moved = gs.make_move(start_coords, end_coords)
+                        if moved:
+                            if is_cap:
+                                sounds.play_capture()
+                            elif gs.check:
+                                sounds.play_check()
+                            else:
+                                sounds.play_move()
+                                
+                            if gs.game_over:
+                                sounds.play_game_over()
+                                
                     sq_selected = ()
                     player_clicks = []
                     valid_moves_for_sq = []
             
         screen.fill(pygame.Color('darkgray'))
-        draw_board(screen, ui_font)
         
+        # Draw Evaluation Bar
+        eval_score = gs.get_evaluation()
+        draw_eval_bar(screen, eval_score, flipped, ui_font)
+
+        # Draw Board & Coordinates
+        draw_board(screen, ui_font, current_theme, flipped)
+        
+        # Active position for rendering (review or live)
+        display_board = gs.board
+        if review_idx is not None and review_idx < len(gs.fen_history):
+            temp_gs = GameState.from_fen(gs.fen_history[review_idx])
+            display_board = temp_gs.board
+
         king_in_check_sq = None
         if gs.check:
             k = gs.get_king(gs.turn)
             if k: king_in_check_sq = (k.row, k.col)
             
-        draw_highlights(screen, sq_selected, valid_moves_for_sq, gs.last_move, king_in_check_sq)
-        draw_pieces(screen, gs.board)
-        btn_ai_toggle, btn_ai_depth, btn_restart = draw_panel(screen, gs, ui_font, AI_ENABLED, ai_depth)
+        draw_highlights(screen, sq_selected, valid_moves_for_sq, gs.last_move, king_in_check_sq, gs, flipped)
+        draw_pieces(screen, display_board, flipped)
         
-        # Draw Promotion Modal
+        # Draw Side Panel
+        draw_panel(
+            screen, gs, ui_font, AI_ENABLED, ai_depth,
+            player_color, current_theme, sounds.sound_enabled, flipped, review_idx
+        )
+        
+        # Promotion Modal
         if gs.promotion_pending:
             overlay = pygame.Surface((config.WIDTH, config.HEIGHT))
             overlay.set_alpha(160)
@@ -354,9 +580,13 @@ def main() -> None:
                 lbl_surf = pygame.font.SysFont("Arial", 11, True).render(label, True, pygame.Color('black'))
                 screen.blit(lbl_surf, lbl_surf.get_rect(center=(tile_rect.centerx, tile_rect.bottom - 12)))
 
-        # Draw Game Over Overlay
+        # Game Over Overlay
         if gs.game_over:
-            text = "Draw by Stalemate/Repetition!" if gs.is_draw else f"Checkmate! {'Black' if gs.turn == 'white' else 'White'} wins!"
+            if gs.timed_out_color:
+                winner = "Black" if gs.timed_out_color == "white" else "White"
+                text = f"{winner} wins on time!"
+            else:
+                text = "Draw by Stalemate/Repetition!" if gs.is_draw else f"Checkmate! {'Black' if gs.turn == 'white' else 'White'} wins!"
             text_surf = large_font.render(text, True, pygame.Color('white'))
             
             overlay = pygame.Surface((config.WIDTH, config.HEIGHT))
@@ -379,7 +609,6 @@ def main() -> None:
             screen.blit(btn_text, btn_text.get_rect(center=btn_game_over_restart.center))
             
         pygame.display.flip()
-        clock.tick(config.MAX_FPS)
 
 if __name__ == "__main__":
     main()

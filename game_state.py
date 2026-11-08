@@ -46,6 +46,7 @@ class GameState:
         self.halfmove_clock: int = 0
         self.fullmove_number: int = 1
         self.history: list[str] = []
+        self.fen_history: list[str] = []
         self.dead_white: list[pieces.Piece] = []
         self.dead_black: list[pieces.Piece] = []
         self.game_over: bool = False
@@ -53,6 +54,10 @@ class GameState:
         self.check: bool = False
         self.promotion_pending: dict | None = None
         self.move_log: list[str] = []
+        self.time_control: int = 0
+        self.white_time: float = 0.0
+        self.black_time: float = 0.0
+        self.timed_out_color: str | None = None
         self.reset()
 
     def reset(self) -> None:
@@ -71,8 +76,16 @@ class GameState:
         self.check = False
         self.promotion_pending = None
         self.move_log = []
+        self.timed_out_color = None
+        if self.time_control > 0:
+            self.white_time = float(self.time_control)
+            self.black_time = float(self.time_control)
+        else:
+            self.white_time = 0.0
+            self.black_time = 0.0
         functions.place_pieces(self.board, self.pieces_arr)
         self.history.append(self.get_board_hash())
+        self.fen_history = [self.to_fen()]
         logger.info("Game reset to starting position")
 
     def get_king(self, color: str) -> pieces.King | None:
@@ -172,6 +185,7 @@ class GameState:
 
         functions.place_pieces(self.board, self.pieces_arr)
         self.check_game_end()
+        self.fen_history.append(self.to_fen())
         return True
 
     def complete_promotion(self, piece_type: str) -> None:
@@ -203,6 +217,7 @@ class GameState:
 
         functions.place_pieces(self.board, self.pieces_arr)
         self.check_game_end()
+        self.fen_history.append(self.to_fen())
         logger.info(f"Promoted to {piece_type}")
 
     def make_ai_move(self, depth: int) -> bool:
@@ -253,6 +268,7 @@ class GameState:
 
         functions.place_pieces(self.board, self.pieces_arr)
         self.check_game_end()
+        self.fen_history.append(self.to_fen())
         return True
 
     def get_board_hash(self) -> str:
@@ -382,28 +398,18 @@ class GameState:
         # 5 & 6. Clocks
         return f"{placement} {active} {castling} {ep} {self.halfmove_clock} {self.fullmove_number}"
 
-    @classmethod
-    def from_fen(cls, fen: str) -> 'GameState':
-        """Create a GameState from a FEN string."""
-        gs = cls.__new__(cls)
-        gs.board = functions.make_board()
-        gs.pieces_arr = []
-        gs.history = []
-        gs.dead_white = []
-        gs.dead_black = []
-        gs.game_over = False
-        gs.is_draw = False
-        gs.check = False
-        gs.promotion_pending = None
-        gs.move_log = []
-
+    def restore_from_fen(self, fen: str) -> None:
+        """Restore board position and state from a FEN string."""
         parts = fen.strip().split()
         placement = parts[0]
-        gs.turn = "white" if parts[1] == "w" else "black"
+        self.turn = "white" if parts[1] == "w" else "black"
         castling_str = parts[2] if len(parts) > 2 else "-"
         ep_str = parts[3] if len(parts) > 3 else "-"
-        gs.halfmove_clock = int(parts[4]) if len(parts) > 4 else 0
-        gs.fullmove_number = int(parts[5]) if len(parts) > 5 else 1
+        self.halfmove_clock = int(parts[4]) if len(parts) > 4 else 0
+        self.fullmove_number = int(parts[5]) if len(parts) > 5 else 1
+
+        self.board = functions.make_board()
+        self.pieces_arr = []
 
         # Parse placement
         rows = placement.split("/")
@@ -416,71 +422,162 @@ class GameState:
                     cls_name, color = FEN_PIECE_MAP[ch]
                     piece_cls = PIECE_CLASS_MAP[cls_name]
                     p = piece_cls(r, c, color)
-                    gs.pieces_arr.append(p)
+                    self.pieces_arr.append(p)
                     c += 1
 
         # Set has_moved based on castling rights
-        for p in gs.pieces_arr:
-            p.has_moved = True  # Assume all have moved
+        for p in self.pieces_arr:
+            p.has_moved = True
 
         if 'K' in castling_str:
-            wk = gs.get_king("white")
-            if wk:
-                wk.has_moved = False
-            wr_k = functions.get_piece((7, 7), gs.pieces_arr)
-            if wr_k:
-                wr_k.has_moved = False
+            wk = self.get_king("white")
+            if wk: wk.has_moved = False
+            wr_k = functions.get_piece((7, 7), self.pieces_arr)
+            if wr_k: wr_k.has_moved = False
         if 'Q' in castling_str:
-            wk = gs.get_king("white")
-            if wk:
-                wk.has_moved = False
-            wr_q = functions.get_piece((7, 0), gs.pieces_arr)
-            if wr_q:
-                wr_q.has_moved = False
+            wk = self.get_king("white")
+            if wk: wk.has_moved = False
+            wr_q = functions.get_piece((7, 0), self.pieces_arr)
+            if wr_q: wr_q.has_moved = False
         if 'k' in castling_str:
-            bk = gs.get_king("black")
-            if bk:
-                bk.has_moved = False
-            br_k = functions.get_piece((0, 7), gs.pieces_arr)
-            if br_k:
-                br_k.has_moved = False
+            bk = self.get_king("black")
+            if bk: bk.has_moved = False
+            br_k = functions.get_piece((0, 7), self.pieces_arr)
+            if br_k: br_k.has_moved = False
         if 'q' in castling_str:
-            bk = gs.get_king("black")
-            if bk:
-                bk.has_moved = False
-            br_q = functions.get_piece((0, 0), gs.pieces_arr)
-            if br_q:
-                br_q.has_moved = False
+            bk = self.get_king("black")
+            if bk: bk.has_moved = False
+            br_q = functions.get_piece((0, 0), self.pieces_arr)
+            if br_q: br_q.has_moved = False
 
-        # Set has_moved = False for pawns on their starting rank
-        for p in gs.pieces_arr:
+        for p in self.pieces_arr:
             if p.piece_type == "pawn":
                 if (p.color == "white" and p.row == 6) or (p.color == "black" and p.row == 1):
                     p.has_moved = False
 
-        # En passant — reconstruct last_move if needed
-        gs.last_move = None
+        self.last_move = None
         if ep_str != "-":
             ep_col = ord(ep_str[0]) - ord('a')
             ep_rank = 8 - int(ep_str[1])
-            # The pawn that made the double push
-            if gs.turn == "white":
-                # Black just moved, pawn is at ep_rank + 1
+            if self.turn == "white":
                 pawn_row = ep_rank + 1
                 pawn_start = (ep_rank - 1, ep_col)
             else:
                 pawn_row = ep_rank - 1
                 pawn_start = (ep_rank + 1, ep_col)
-            for p in gs.pieces_arr:
+            for p in self.pieces_arr:
                 if p.alive and p.piece_type == "pawn" and p.row == pawn_row and p.col == ep_col:
-                    gs.last_move = (p, pawn_start, (pawn_row, ep_col))
+                    self.last_move = (p, pawn_start, (pawn_row, ep_col))
                     break
 
-        functions.place_pieces(gs.board, gs.pieces_arr)
+        functions.place_pieces(self.board, self.pieces_arr)
+        self.promotion_pending = None
+        self.game_over = False
+        self.is_draw = False
+        self.check = False
+        self.check_game_end()
+        self.sync_dead_pieces()
+
+    @classmethod
+    def from_fen(cls, fen: str) -> 'GameState':
+        """Create a GameState from a FEN string."""
+        gs = cls.__new__(cls)
+        gs.history = []
+        gs.fen_history = [fen]
+        gs.dead_white = []
+        gs.dead_black = []
+        gs.move_log = []
+        gs.time_control = 0
+        gs.white_time = 0.0
+        gs.black_time = 0.0
+        gs.timed_out_color = None
+        gs.restore_from_fen(fen)
         gs.history.append(gs.get_board_hash())
-        gs.check_game_end()
         logger.info(f"Loaded FEN: {fen}")
         return gs
+
+    def sync_dead_pieces(self) -> None:
+        """Reconstruct dead_white and dead_black from standard piece sets."""
+        full_pieces = functions.initialize_pieces()
+        self.dead_white = []
+        self.dead_black = []
+        alive_white = [p for p in self.pieces_arr if p.alive and p.color == 'white']
+        alive_black = [p for p in self.pieces_arr if p.alive and p.color == 'black']
+        for p in full_pieces:
+            if p.color == 'white':
+                match = next((a for a in alive_white if a.piece_type == p.piece_type), None)
+                if match:
+                    alive_white.remove(match)
+                else:
+                    self.dead_white.append(p)
+            else:
+                match = next((a for a in alive_black if a.piece_type == p.piece_type), None)
+                if match:
+                    alive_black.remove(match)
+                else:
+                    self.dead_black.append(p)
+
+    def undo_move(self, against_ai: bool = True) -> bool:
+        """Undoes the last move (or 2 moves if playing against AI)."""
+        if self.promotion_pending:
+            self.promotion_pending = None
+            if self.fen_history:
+                self.restore_from_fen(self.fen_history[-1])
+            return True
+
+        if len(self.fen_history) <= 1:
+            return False
+
+        steps = 2 if against_ai and len(self.fen_history) >= 3 else 1
+        for _ in range(steps):
+            if len(self.fen_history) > 1:
+                self.fen_history.pop()
+            if self.move_log:
+                self.move_log.pop()
+            if self.history:
+                self.history.pop()
+
+        target_fen = self.fen_history[-1]
+        self.restore_from_fen(target_fen)
+        self.game_over = False
+        self.is_draw = False
+        self.timed_out_color = None
+        self.check_game_end()
+        logger.info("Undid move")
+        return True
+
+    def set_time_control(self, seconds: int) -> None:
+        """Sets clock time control in seconds."""
+        self.time_control = seconds
+        self.white_time = float(seconds)
+        self.black_time = float(seconds)
+        self.timed_out_color = None
+
+    def update_clock(self, dt: float) -> bool:
+        """Updates clocks by dt seconds. Returns True if time ran out."""
+        if self.time_control <= 0 or self.game_over:
+            return False
+        if self.turn == "white":
+            self.white_time -= dt
+            if self.white_time <= 0:
+                self.white_time = 0.0
+                self.game_over = True
+                self.is_draw = False
+                self.timed_out_color = "white"
+                return True
+        else:
+            self.black_time -= dt
+            if self.black_time <= 0:
+                self.black_time = 0.0
+                self.game_over = True
+                self.is_draw = False
+                self.timed_out_color = "black"
+                return True
+        return False
+
+    def get_evaluation(self) -> int:
+        """Returns evaluation in centipawns from White's perspective (+100 = White +1 pawn)."""
+        return ai.evaluate_board(self.pieces_arr, "white")
 
     def to_move_notation(self, piece: pieces.Piece, start: tuple[int, int],
                           end: tuple[int, int], is_capture: bool) -> str:
