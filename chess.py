@@ -24,8 +24,12 @@ def load_images() -> None:
     for symbol, filename in asset_map.items():
         try:
             img = pygame.image.load(f"assets/images/{filename}.png")
-            PIECE_IMAGES[symbol] = pygame.transform.smoothscale(img, (config.SQ_SIZE, config.SQ_SIZE))
-            PIECE_IMAGES[f"{symbol}_small"] = pygame.transform.smoothscale(img, (32, 32))
+            surf = pygame.transform.smoothscale(img, (config.SQ_SIZE, config.SQ_SIZE))
+            surf_small = pygame.transform.smoothscale(img, (26, 26))
+            PIECE_IMAGES[symbol] = surf
+            PIECE_IMAGES[filename] = surf
+            PIECE_IMAGES[f"{symbol}_small"] = surf_small
+            PIECE_IMAGES[f"{filename}_small"] = surf_small
         except Exception as e:
             print(f"Error loading image {filename}: {e}")
 
@@ -79,52 +83,112 @@ def draw_pieces(screen: pygame.Surface, board: list[list]) -> None:
 
 def draw_panel(screen: pygame.Surface, gs: GameState, font: pygame.font.Font, ai_enabled: bool, ai_depth: int) -> tuple[pygame.Rect, pygame.Rect, pygame.Rect]:
     panel_rect = pygame.Rect(config.MARGIN_LEFT + config.DIMENSION * config.SQ_SIZE, 0, config.PANEL_WIDTH, config.HEIGHT)
-    pygame.draw.rect(screen, (50, 50, 50), panel_rect)
+    pygame.draw.rect(screen, (40, 44, 52), panel_rect)
     
-    turn_text = f"{gs.turn.capitalize()} to move"
-    turn_surf = font.render(turn_text, True, pygame.Color("white"))
-    screen.blit(turn_surf, (panel_rect.x + 10, 10))
+    # Header Status
+    if gs.game_over:
+        if gs.is_draw:
+            status_text = "Draw (Stalemate)"
+            status_color = (255, 215, 0)
+        else:
+            winner = "Black" if gs.turn == "white" else "White"
+            status_text = f"{winner} Wins!"
+            status_color = (100, 255, 100)
+    elif gs.check:
+        status_text = f"{gs.turn.capitalize()} in Check!"
+        status_color = (255, 100, 100)
+    else:
+        status_text = f"{gs.turn.capitalize()} to move"
+        status_color = (255, 255, 255)
+
+    status_surf = font.render(status_text, True, status_color)
+    screen.blit(status_surf, (panel_rect.x + 12, 12))
     
-    # Dead White
-    x_offset, y_offset = 10, 50
+    # Subtitle / Move count
+    move_info = f"Move {gs.fullmove_number}"
+    sub_surf = pygame.font.SysFont("Arial", 12).render(move_info, True, (170, 178, 190))
+    screen.blit(sub_surf, (panel_rect.x + 12, 34))
+
+    # Captured White Pieces (captured by Black)
+    cap_title_w = pygame.font.SysFont("Arial", 11, True).render("CAPTURED WHITE", True, (150, 150, 150))
+    screen.blit(cap_title_w, (panel_rect.x + 12, 54))
+    x_offset, y_offset = 12, 70
     for dp in gs.dead_white:
         sym = functions.SYM_TO_EMOJI_DICT[str(dp)]
         if f"{sym}_small" in PIECE_IMAGES:
             screen.blit(PIECE_IMAGES[f"{sym}_small"], (panel_rect.x + x_offset, y_offset))
-        x_offset += 16
-        if x_offset > config.PANEL_WIDTH - 32:
-            x_offset = 10
-            y_offset += 32
+        x_offset += 20
+        if x_offset > config.PANEL_WIDTH - 30:
+            x_offset = 12
+            y_offset += 26
             
-    # Dead Black
-    x_offset, y_offset = 10, config.HEIGHT - 150
-    pygame.draw.line(screen, (100, 100, 100), (panel_rect.x + 10, y_offset - 10), (panel_rect.right - 10, y_offset - 10))
+    # Captured Black Pieces (captured by White)
+    cap_title_b = pygame.font.SysFont("Arial", 11, True).render("CAPTURED BLACK", True, (150, 150, 150))
+    screen.blit(cap_title_b, (panel_rect.x + 12, 130))
+    x_offset, y_offset = 12, 146
     for dp in gs.dead_black:
         sym = functions.SYM_TO_EMOJI_DICT[str(dp)]
         if f"{sym}_small" in PIECE_IMAGES:
             screen.blit(PIECE_IMAGES[f"{sym}_small"], (panel_rect.x + x_offset, y_offset))
-        x_offset += 16
-        if x_offset > config.PANEL_WIDTH - 32:
-            x_offset = 10
-            y_offset += 32
+        x_offset += 20
+        if x_offset > config.PANEL_WIDTH - 30:
+            x_offset = 12
+            y_offset += 26
+
+    # Recent Move History
+    history_box = pygame.Rect(panel_rect.x + 10, 210, config.PANEL_WIDTH - 20, 175)
+    pygame.draw.rect(screen, (30, 33, 40), history_box, border_radius=6)
+    pygame.draw.rect(screen, (60, 65, 75), history_box, 1, border_radius=6)
+    
+    hist_title = pygame.font.SysFont("Arial", 11, True).render("MOVE HISTORY", True, (160, 170, 185))
+    screen.blit(hist_title, (history_box.x + 8, history_box.y + 6))
+    
+    # Render last 6 moves
+    log_font = pygame.font.SysFont("Arial", 12)
+    start_idx = max(0, len(gs.move_log) - 10)
+    recent = gs.move_log[start_idx:]
+    
+    # Pair moves: "1. e4 e5", "2. Nf3 Nc6"
+    lines = []
+    i = 0
+    while i < len(recent):
+        abs_move_idx = start_idx + i
+        move_num = (abs_move_idx // 2) + 1
+        if abs_move_idx % 2 == 0:
+            # White move
+            w_move = recent[i]
+            b_move = recent[i+1] if (i + 1 < len(recent)) else ""
+            lines.append(f"{move_num}. {w_move}  {b_move}".strip())
+            i += 2
+        else:
+            # Started on Black move
+            lines.append(f"{move_num}... {recent[i]}")
+            i += 1
             
-    # Buttons
+    y_line = history_box.y + 26
+    for line in lines[-6:]:
+        line_surf = log_font.render(line, True, (220, 225, 230))
+        screen.blit(line_surf, (history_box.x + 10, y_line))
+        y_line += 22
+
+    # Bottom Control Buttons
     btn_x = panel_rect.x + 10
     btn_w = config.PANEL_WIDTH - 20
-    btn_h = 35
+    btn_h = 34
     
-    btn_ai_toggle = pygame.Rect(btn_x, config.HEIGHT // 2 - 45, btn_w, btn_h)
-    pygame.draw.rect(screen, (80, 120, 150), btn_ai_toggle, border_radius=5)
+    btn_ai_toggle = pygame.Rect(btn_x, config.HEIGHT - 135, btn_w, btn_h)
+    ai_btn_color = (60, 120, 180) if ai_enabled else (85, 90, 100)
+    pygame.draw.rect(screen, ai_btn_color, btn_ai_toggle, border_radius=6)
     toggle_text = font.render(f"AI: {'ON' if ai_enabled else 'OFF'}", True, pygame.Color('white'))
     screen.blit(toggle_text, toggle_text.get_rect(center=btn_ai_toggle.center))
     
-    btn_ai_depth = pygame.Rect(btn_x, config.HEIGHT // 2, btn_w, btn_h)
-    pygame.draw.rect(screen, (80, 120, 150), btn_ai_depth, border_radius=5)
+    btn_ai_depth = pygame.Rect(btn_x, config.HEIGHT - 92, btn_w, btn_h)
+    pygame.draw.rect(screen, (70, 80, 95), btn_ai_depth, border_radius=6)
     depth_text = font.render(f"AI Depth: {ai_depth}", True, pygame.Color('white'))
     screen.blit(depth_text, depth_text.get_rect(center=btn_ai_depth.center))
     
-    btn_restart = pygame.Rect(btn_x, config.HEIGHT // 2 + 45, btn_w, btn_h)
-    pygame.draw.rect(screen, (200, 80, 80), btn_restart, border_radius=5)
+    btn_restart = pygame.Rect(btn_x, config.HEIGHT - 49, btn_w, btn_h)
+    pygame.draw.rect(screen, (180, 60, 60), btn_restart, border_radius=6)
     restart_text = font.render("Restart Game", True, pygame.Color('white'))
     screen.blit(restart_text, restart_text.get_rect(center=btn_restart.center))
     
@@ -137,8 +201,8 @@ def main() -> None:
     
     load_images()
     
-    ui_font = pygame.font.SysFont("Arial", 18, True)
-    large_font = pygame.font.SysFont("Arial", 32, True)
+    ui_font = pygame.font.SysFont("Arial", 16, True)
+    large_font = pygame.font.SysFont("Arial", 30, True)
 
     gs = GameState()
     AI_ENABLED = True
@@ -148,13 +212,12 @@ def main() -> None:
     sq_selected = ()
     player_clicks = []
     valid_moves_for_sq = []
-    btn_game_over_restart = pygame.Rect(0,0,0,0)
+    btn_game_over_restart = pygame.Rect(0, 0, 0, 0)
 
     while True:
         # AI Move logic
         if not gs.game_over and AI_ENABLED and gs.turn == AI_COLOR and not gs.promotion_pending:
             gs.make_ai_move(ai_depth)
-            # Clear selection if AI moves
             sq_selected = ()
             player_clicks = []
             valid_moves_for_sq = []
@@ -197,15 +260,14 @@ def main() -> None:
                 if gs.game_over or (AI_ENABLED and gs.turn == AI_COLOR):
                     continue
                     
-                # Handle Promotion UI
+                # Handle Promotion UI clicks
                 if gs.promotion_pending:
-                    p_opts = ['Q', 'R', 'B', 'N']
-                    menu_w, menu_h = 300, 100
+                    menu_w, menu_h = 320, 130
                     menu_rect = pygame.Rect(config.WIDTH//2 - menu_w//2, config.HEIGHT//2 - menu_h//2, menu_w, menu_h)
-                    for i, p in enumerate(p_opts):
-                        rect = pygame.Rect(menu_rect.x + 20 + i*65, menu_rect.y + (menu_h - config.SQ_SIZE)//2, config.SQ_SIZE, config.SQ_SIZE)
-                        if rect.collidepoint(location):
-                            full_name = {'Q':'Queen', 'R':'Rook', 'B':'Bishop', 'N':'Knight'}[p]
+                    p_opts = [('Q', 'Queen'), ('R', 'Rook'), ('B', 'Bishop'), ('N', 'Knight')]
+                    for i, (p, full_name) in enumerate(p_opts):
+                        tile_rect = pygame.Rect(menu_rect.x + 16 + i * 72, menu_rect.y + 40, 68, 76)
+                        if tile_rect.collidepoint(location):
                             gs.complete_promotion(full_name)
                             break
                     continue
@@ -258,46 +320,62 @@ def main() -> None:
         draw_pieces(screen, gs.board)
         btn_ai_toggle, btn_ai_depth, btn_restart = draw_panel(screen, gs, ui_font, AI_ENABLED, ai_depth)
         
+        # Draw Promotion Modal
         if gs.promotion_pending:
             overlay = pygame.Surface((config.WIDTH, config.HEIGHT))
-            overlay.set_alpha(150)
+            overlay.set_alpha(160)
             overlay.fill((0, 0, 0))
             screen.blit(overlay, (0, 0))
             
-            menu_w, menu_h = 300, 100
+            menu_w, menu_h = 320, 130
             menu_rect = pygame.Rect(config.WIDTH//2 - menu_w//2, config.HEIGHT//2 - menu_h//2, menu_w, menu_h)
-            pygame.draw.rect(screen, (200, 200, 200), menu_rect, border_radius=10)
-            pygame.draw.rect(screen, (50, 50, 50), menu_rect, 2, border_radius=10)
+            pygame.draw.rect(screen, (245, 245, 245), menu_rect, border_radius=12)
+            pygame.draw.rect(screen, (40, 44, 52), menu_rect, 3, border_radius=12)
             
-            p_opts = ['Q', 'R', 'B', 'N']
+            title_text = ui_font.render("Choose Promotion Piece:", True, pygame.Color('black'))
+            screen.blit(title_text, title_text.get_rect(center=(menu_rect.centerx, menu_rect.y + 20)))
+            
+            p_opts = [('Q', 'Queen'), ('R', 'Rook'), ('B', 'Bishop'), ('N', 'Knight')]
             prefix = 'w' if gs.promotion_pending['color'] == 'white' else 'b'
-            for i, p in enumerate(p_opts):
-                rect = pygame.Rect(menu_rect.x + 20 + i*65, menu_rect.y + (menu_h - config.SQ_SIZE)//2, config.SQ_SIZE, config.SQ_SIZE)
+            mouse_pos = pygame.mouse.get_pos()
+            
+            for i, (p, label) in enumerate(p_opts):
+                tile_rect = pygame.Rect(menu_rect.x + 16 + i * 72, menu_rect.y + 40, 68, 76)
+                is_hover = tile_rect.collidepoint(mouse_pos)
+                tile_bg = (210, 230, 250) if is_hover else (255, 255, 255)
+                pygame.draw.rect(screen, tile_bg, tile_rect, border_radius=8)
+                pygame.draw.rect(screen, (60, 120, 180) if is_hover else (190, 195, 205), tile_rect, 2, border_radius=8)
+                
                 img_key = f"{prefix}{p}"
                 if img_key in PIECE_IMAGES:
-                    screen.blit(PIECE_IMAGES[img_key], rect)
+                    piece_img = pygame.transform.smoothscale(PIECE_IMAGES[img_key], (46, 46))
+                    screen.blit(piece_img, (tile_rect.x + 11, tile_rect.y + 6))
+                    
+                lbl_surf = pygame.font.SysFont("Arial", 11, True).render(label, True, pygame.Color('black'))
+                screen.blit(lbl_surf, lbl_surf.get_rect(center=(tile_rect.centerx, tile_rect.bottom - 12)))
 
+        # Draw Game Over Overlay
         if gs.game_over:
             text = "Draw by Stalemate/Repetition!" if gs.is_draw else f"Checkmate! {'Black' if gs.turn == 'white' else 'White'} wins!"
             text_surf = large_font.render(text, True, pygame.Color('white'))
             
             overlay = pygame.Surface((config.WIDTH, config.HEIGHT))
-            overlay.set_alpha(150)
+            overlay.set_alpha(160)
             overlay.fill((0, 0, 0))
             screen.blit(overlay, (0, 0))
             
-            bg_rect = pygame.Rect(0, 0, text_surf.get_width() + 40, text_surf.get_height() + 40)
+            bg_rect = pygame.Rect(0, 0, text_surf.get_width() + 50, text_surf.get_height() + 50)
             bg_rect.center = (config.WIDTH // 2, config.HEIGHT // 2 - 20)
-            pygame.draw.rect(screen, (50, 50, 50), bg_rect, border_radius=10)
-            pygame.draw.rect(screen, (255, 255, 255), bg_rect, 2, border_radius=10)
+            pygame.draw.rect(screen, (40, 44, 52), bg_rect, border_radius=12)
+            pygame.draw.rect(screen, (220, 225, 235), bg_rect, 2, border_radius=12)
             
             text_rect = text_surf.get_rect(center=bg_rect.center)
             screen.blit(text_surf, text_rect)
             
-            btn_game_over_restart = pygame.Rect(0, 0, 120, 40)
-            btn_game_over_restart.center = (config.WIDTH // 2, config.HEIGHT // 2 + 50)
-            pygame.draw.rect(screen, (100, 200, 100), btn_game_over_restart, border_radius=5)
-            btn_text = ui_font.render("New Game", True, pygame.Color('black'))
+            btn_game_over_restart = pygame.Rect(0, 0, 130, 40)
+            btn_game_over_restart.center = (config.WIDTH // 2, config.HEIGHT // 2 + 55)
+            pygame.draw.rect(screen, (60, 160, 80), btn_game_over_restart, border_radius=6)
+            btn_text = ui_font.render("New Game", True, pygame.Color('white'))
             screen.blit(btn_text, btn_text.get_rect(center=btn_game_over_restart.center))
             
         pygame.display.flip()

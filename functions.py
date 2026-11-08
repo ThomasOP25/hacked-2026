@@ -116,14 +116,14 @@ def move_piece(start_coords: tuple[int, int], end_coords: tuple[int, int], board
         # Move the rook
         if end_col == 6: # Kingside
             rook = get_piece((start_row, 7), pieces_arr)
-            if rook:
+            if rook and rook.piece_type == "rook" and rook.color == piece.color and rook.alive:
                 board[start_row][7] = 0
                 board[start_row][5] = SYM_TO_EMOJI_DICT[str(rook)]
                 rook.col = 5
                 rook.has_moved = True
         elif end_col == 2: # Queenside
             rook = get_piece((start_row, 0), pieces_arr)
-            if rook:
+            if rook and rook.piece_type == "rook" and rook.color == piece.color and rook.alive:
                 board[start_row][0] = 0
                 board[start_row][3] = SYM_TO_EMOJI_DICT[str(rook)]
                 rook.col = 3
@@ -172,7 +172,7 @@ def get_strictly_legal_moves(king: pieces.King, piece: pieces.Piece, board: list
         if not king_checked(board, king, pieces_arr):
             # Check Kingside (col 5, 6)
             kingside_rook = get_piece((start_row, 7), pieces_arr)
-            if kingside_rook and kingside_rook.piece_type == "rook" and not kingside_rook.has_moved:
+            if kingside_rook and kingside_rook.piece_type == "rook" and kingside_rook.color == piece.color and kingside_rook.alive and not kingside_rook.has_moved:
                 if board[start_row][5] == 0 and board[start_row][6] == 0:
                     # Check if passing through check — also update board temporarily
                     orig_symbol = board[start_row][start_col]
@@ -193,7 +193,7 @@ def get_strictly_legal_moves(king: pieces.King, piece: pieces.Piece, board: list
 
             # Check Queenside (col 1, 2, 3)
             queenside_rook = get_piece((start_row, 0), pieces_arr)
-            if queenside_rook and queenside_rook.piece_type == "rook" and not queenside_rook.has_moved:
+            if queenside_rook and queenside_rook.piece_type == "rook" and queenside_rook.color == piece.color and queenside_rook.alive and not queenside_rook.has_moved:
                 if board[start_row][1] == 0 and board[start_row][2] == 0 and board[start_row][3] == 0:
                     orig_symbol = board[start_row][start_col]
                     board[start_row][start_col] = 0
@@ -224,11 +224,14 @@ def get_strictly_legal_moves(king: pieces.King, piece: pieces.Piece, board: list
 
         # Simulate En Passant Capture
         ep_captured_piece = None
+        temp_ep_symbol = None
         if piece.piece_type == "pawn" and start_col != end_col and captured_piece is None:
             for p in pieces_arr:
                 if p.alive and p.row == start_row and p.col == end_col:
                     ep_captured_piece = p
                     ep_captured_piece.alive = False
+                    temp_ep_symbol = board[start_row][end_col]
+                    board[start_row][end_col] = 0
                     break
 
         piece.row = end_row
@@ -253,5 +256,6 @@ def get_strictly_legal_moves(king: pieces.King, piece: pieces.Piece, board: list
             captured_piece.alive = True
         if ep_captured_piece:
             ep_captured_piece.alive = True
+            board[start_row][end_col] = temp_ep_symbol
             
     return legal_moves

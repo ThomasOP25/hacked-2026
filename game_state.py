@@ -72,6 +72,7 @@ class GameState:
         self.promotion_pending = None
         self.move_log = []
         functions.place_pieces(self.board, self.pieces_arr)
+        self.history.append(self.get_board_hash())
         logger.info("Game reset to starting position")
 
     def get_king(self, color: str) -> pieces.King | None:
@@ -476,7 +477,8 @@ class GameState:
                     break
 
         functions.place_pieces(gs.board, gs.pieces_arr)
-        gs.check = gs.is_check()
+        gs.history.append(gs.get_board_hash())
+        gs.check_game_end()
         logger.info(f"Loaded FEN: {fen}")
         return gs
 
