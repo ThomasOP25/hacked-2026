@@ -58,6 +58,7 @@ class GameState:
         self.white_time: float = 0.0
         self.black_time: float = 0.0
         self.timed_out_color: str | None = None
+        self.undo_enabled: bool = True
         self.reset()
 
     def reset(self) -> None:
@@ -275,16 +276,20 @@ class GameState:
         """Position hash for 3-fold repetition detection."""
         board_str = "".join([str(p) for row in self.board for p in row])
         board_str += self.turn
-        for p in self.pieces_arr:
-            if p.alive and (isinstance(p, pieces.King) or isinstance(p, pieces.Rook)):
-                board_str += f"{p.piece_type}{p.col}{p.has_moved}"
+        key_pieces = [
+            p for p in self.pieces_arr
+            if p.alive and (isinstance(p, pieces.King) or isinstance(p, pieces.Rook))
+        ]
+        key_pieces.sort(key=lambda p: (p.color, p.piece_type, p.col))
+        for p in key_pieces:
+            board_str += f"{p.color}{p.piece_type}{p.col}{p.has_moved}"
         if self.last_move:
             lm_piece, lm_start, lm_end = self.last_move
             if lm_piece.piece_type == "pawn" and abs(lm_start[0] - lm_end[0]) == 2:
                 board_str += f"ep{lm_end[1]}"
         return board_str
 
-    def check_game_end(self) -> None:
+    def check_game_end(self, record_history: bool = True) -> None:
         """Update game_over, is_draw, check fields."""
         functions.place_pieces(self.board, self.pieces_arr)
         self.check = self.is_check()
@@ -293,7 +298,8 @@ class GameState:
 
         # Record position for repetition
         bh = self.get_board_hash()
-        self.history.append(bh)
+        if record_history:
+            self.history.append(bh)
 
         self.is_draw = False
         if self.history.count(bh) >= 3:
@@ -475,7 +481,7 @@ class GameState:
         self.game_over = False
         self.is_draw = False
         self.check = False
-        self.check_game_end()
+        self.check_game_end(record_history=False)
         self.sync_dead_pieces()
 
     @classmethod
@@ -491,8 +497,10 @@ class GameState:
         gs.white_time = 0.0
         gs.black_time = 0.0
         gs.timed_out_color = None
+        gs.undo_enabled = True
         gs.restore_from_fen(fen)
-        gs.history.append(gs.get_board_hash())
+        gs.history = [gs.get_board_hash()]
+        gs.check_game_end(record_history=False)
         logger.info(f"Loaded FEN: {fen}")
         return gs
 
@@ -519,6 +527,10 @@ class GameState:
 
     def undo_move(self, against_ai: bool = True) -> bool:
         """Undoes the last move (or 2 moves if playing against AI)."""
+        if not self.undo_enabled:
+            logger.info("Undo not allowed (undo_enabled=False)")
+            return False
+
         if self.promotion_pending:
             self.promotion_pending = None
             if self.fen_history:
@@ -534,7 +546,7 @@ class GameState:
                 self.fen_history.pop()
             if self.move_log:
                 self.move_log.pop()
-            if self.history:
+            if len(self.history) > 1:
                 self.history.pop()
 
         target_fen = self.fen_history[-1]
@@ -542,7 +554,7 @@ class GameState:
         self.game_over = False
         self.is_draw = False
         self.timed_out_color = None
-        self.check_game_end()
+        self.check_game_end(record_history=False)
         logger.info("Undid move")
         return True
 

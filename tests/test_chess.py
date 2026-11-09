@@ -465,6 +465,32 @@ class TestNewFeatures:
         assert gs.turn == "white"
         assert len(gs.fen_history) == 1
 
+    def test_undo_twice_no_spurious_threefold_repetition(self):
+        gs = game_state.GameState()
+        # Move 1 & undo
+        assert gs.make_move((6, 4), (4, 4)) is True
+        assert gs.undo_move(against_ai=False) is True
+        assert not gs.game_over
+        assert not gs.is_draw
+
+        # Move 1 again & undo second time
+        assert gs.make_move((6, 4), (4, 4)) is True
+        assert gs.undo_move(against_ai=False) is True
+        # Must NOT trigger 3-fold repetition stalemate!
+        assert not gs.game_over
+        assert not gs.is_draw
+        assert len(gs.history) == 1
+        assert gs.history.count(gs.get_board_hash()) == 1
+
+    def test_undo_disabled_flag(self):
+        gs = game_state.GameState()
+        gs.undo_enabled = False
+        assert gs.make_move((6, 4), (4, 4)) is True
+        # Attempt undo with undo_enabled=False should fail
+        assert gs.undo_move(against_ai=False) is False
+        assert len(gs.fen_history) == 2
+        assert gs.turn == "black"
+
     def test_clocks_and_time_control(self):
         gs = game_state.GameState()
         gs.set_time_control(60)
@@ -547,3 +573,64 @@ class TestPygameUI:
         prefix = 'w' if gs_promo.promotion_pending['color'] == 'white' else 'b'
         for p in ['Q', 'R', 'B', 'N']:
             assert f"{prefix}{p}" in chess.PIECE_IMAGES
+
+    def test_setup_mode_start_game_and_settings_lock(self):
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        import pygame
+        import chess
+        import config
+
+        pygame.init()
+        screen = pygame.Surface((config.WIDTH, config.HEIGHT))
+        chess.load_images()
+        ui_font = pygame.font.SysFont("Arial", 15, True)
+        gs = chess.GameState()
+
+        # 1. Setup Mode rendering
+        buttons = chess.draw_panel(
+            screen, gs, ui_font, True, 1, 'black', 'Green', True, True,
+            game_in_session=False, time_preset_label="10 min", undo_toggle_setting=False
+        )
+        assert 'start' in buttons
+        assert 'side' in buttons
+        assert 'time' in buttons
+        assert 'undo_toggle' in buttons
+        assert 'theme' in buttons
+
+        # Before Start Game: Even if player is black, board is in starting position and AI has not moved
+        assert gs.turn == "white"
+        assert len(gs.fen_history) == 1
+
+        # 2. Simulate Start Game when player is Black and undo is toggled OFF
+        game_in_session = True
+        gs.reset()
+        gs.undo_enabled = False
+        gs.set_time_control(600)
+
+        # AI executes opening move
+        assert gs.make_ai_move(1) is True
+        assert gs.turn == "black"
+        assert len(gs.fen_history) == 2
+
+        # In-Session rendering
+        in_session_buttons = chess.draw_panel(
+            screen, gs, ui_font, True, 1, 'black', 'Green', True, True,
+            game_in_session=True, time_preset_label="10 min", undo_toggle_setting=False
+        )
+        assert 'restart' in in_session_buttons
+        assert 'start' not in in_session_buttons
+        assert 'undo' in in_session_buttons
+
+        # Attempting undo when undo_enabled is False should fail
+        assert gs.undo_move(against_ai=True) is False
+
+        # 3. Simulate Restart Game -> returns to Setup Mode
+        game_in_session = False
+        gs.reset()
+        assert gs.turn == "white"
+        assert len(gs.fen_history) == 1
+        setup_buttons = chess.draw_panel(
+            screen, gs, ui_font, True, 1, 'black', 'Green', True, True,
+            game_in_session=False, time_preset_label="10 min", undo_toggle_setting=True
+        )
+        assert 'start' in setup_buttons

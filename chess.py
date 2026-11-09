@@ -145,14 +145,21 @@ def draw_panel(
     screen: pygame.Surface, gs: GameState, font: pygame.font.Font,
     ai_enabled: bool, ai_depth: int, player_color: str,
     theme_name: str, sound_on: bool, flipped: bool,
-    review_idx: int | None = None
+    review_idx: int | None = None,
+    game_in_session: bool = False,
+    time_preset_label: str = "None",
+    undo_toggle_setting: bool = True
 ) -> dict[str, pygame.Rect]:
     panel_rect = pygame.Rect(config.MARGIN_LEFT + config.DIMENSION * config.SQ_SIZE, 0, config.PANEL_WIDTH, config.HEIGHT)
     pygame.draw.rect(screen, (36, 40, 48), panel_rect)
     buttons = {}
     
     # 1. Header Status
-    if gs.game_over:
+    if not game_in_session:
+        status_text = "Setup Mode"
+        status_color = (255, 205, 110)
+        mode_str = "Choose settings & click Start"
+    elif gs.game_over:
         if gs.timed_out_color:
             winner = "Black" if gs.timed_out_color == "white" else "White"
             status_text = f"{winner} Wins (Time)"
@@ -164,49 +171,51 @@ def draw_panel(
             winner = "Black" if gs.turn == "white" else "White"
             status_text = f"{winner} Wins!"
             status_color = (100, 255, 100)
+        mode_str = f"Game Over • {'PvP' if not ai_enabled else ('AI D' + str(ai_depth))}"
     elif review_idx is not None:
         status_text = f"Reviewing ({review_idx}/{len(gs.fen_history)-1})"
         status_color = (140, 200, 255)
+        mode_str = "Left/Right: scrub, Esc: exit"
     elif gs.check:
         status_text = f"{gs.turn.capitalize()} in Check!"
         status_color = (255, 100, 100)
+        undo_status = "Undo: ON" if gs.undo_enabled else "Undo: OFF"
+        mode_str = f"{'PvP' if not ai_enabled else ('AI D' + str(ai_depth))} • {undo_status}"
     else:
         status_text = f"{gs.turn.capitalize()} to move"
         status_color = (255, 255, 255)
+        undo_status = "Undo: ON" if gs.undo_enabled else "Undo: OFF"
+        mode_str = f"{'PvP' if not ai_enabled else ('AI D' + str(ai_depth))} • {undo_status}"
 
     status_surf = font.render(status_text, True, status_color)
-    screen.blit(status_surf, (panel_rect.x + 12, 12))
+    screen.blit(status_surf, (panel_rect.x + 12, 10))
     
-    # Mode and sub-info
-    mode_str = f"Mode: {'PvP' if not ai_enabled else ('AI Depth ' + str(ai_depth))}"
     sub_surf = pygame.font.SysFont("Arial", 11).render(mode_str, True, (160, 170, 185))
-    screen.blit(sub_surf, (panel_rect.x + 12, 34))
+    screen.blit(sub_surf, (panel_rect.x + 12, 32))
 
     # 2. Clocks (if time control active)
-    clock_y = 54
+    clock_y = 52
     if gs.time_control > 0:
         top_color = "black" if not flipped else "white"
         bot_color = "white" if not flipped else "black"
         top_time = gs.black_time if not flipped else gs.white_time
         bot_time = gs.white_time if not flipped else gs.black_time
         
-        top_box = pygame.Rect(panel_rect.x + 10, clock_y, 105, 28)
-        bot_box = pygame.Rect(panel_rect.right - 115, clock_y, 105, 28)
+        top_box = pygame.Rect(panel_rect.x + 10, clock_y, 105, 26)
+        bot_box = pygame.Rect(panel_rect.right - 115, clock_y, 105, 26)
         
-        # Draw top clock
-        is_top_turn = (gs.turn == top_color and not gs.game_over)
+        is_top_turn = (game_in_session and gs.turn == top_color and not gs.game_over)
         pygame.draw.rect(screen, (55, 62, 75) if is_top_turn else (42, 46, 56), top_box, border_radius=4)
         pygame.draw.rect(screen, (100, 160, 240) if is_top_turn else (70, 75, 85), top_box, 1, border_radius=4)
-        top_txt = pygame.font.SysFont("Arial", 14, True).render(f"{top_color[0].upper()}: {format_clock(top_time)}", True, (255, 100, 100) if top_time < 30 else (240, 240, 240))
+        top_txt = pygame.font.SysFont("Arial", 13, True).render(f"{top_color[0].upper()}: {format_clock(top_time)}", True, (255, 100, 100) if top_time < 30 and game_in_session else (240, 240, 240))
         screen.blit(top_txt, top_txt.get_rect(center=top_box.center))
 
-        # Draw bottom clock
-        is_bot_turn = (gs.turn == bot_color and not gs.game_over)
+        is_bot_turn = (game_in_session and gs.turn == bot_color and not gs.game_over)
         pygame.draw.rect(screen, (55, 62, 75) if is_bot_turn else (42, 46, 56), bot_box, border_radius=4)
         pygame.draw.rect(screen, (100, 160, 240) if is_bot_turn else (70, 75, 85), bot_box, 1, border_radius=4)
-        bot_txt = pygame.font.SysFont("Arial", 14, True).render(f"{bot_color[0].upper()}: {format_clock(bot_time)}", True, (255, 100, 100) if bot_time < 30 else (240, 240, 240))
+        bot_txt = pygame.font.SysFont("Arial", 13, True).render(f"{bot_color[0].upper()}: {format_clock(bot_time)}", True, (255, 100, 100) if bot_time < 30 and game_in_session else (240, 240, 240))
         screen.blit(bot_txt, bot_txt.get_rect(center=bot_box.center))
-        clock_y += 34
+        clock_y += 32
 
     # 3. Captured Pieces
     cap_y = clock_y
@@ -218,90 +227,168 @@ def draw_panel(
         x_offset += 18
         if x_offset > config.PANEL_WIDTH - 25:
             x_offset = 12
-            y_offset += 22
+            y_offset += 20
 
     # 4. Interactive Move History Log
-    hist_top = cap_y + 36
-    history_box = pygame.Rect(panel_rect.x + 10, hist_top, config.PANEL_WIDTH - 20, 150)
+    hist_top = cap_y + 28
+    history_box = pygame.Rect(panel_rect.x + 10, hist_top, config.PANEL_WIDTH - 20, 120)
     pygame.draw.rect(screen, (28, 31, 38), history_box, border_radius=6)
     pygame.draw.rect(screen, (55, 60, 72), history_box, 1, border_radius=6)
     
     hist_title = pygame.font.SysFont("Arial", 11, True).render("MOVE HISTORY", True, (150, 160, 175))
-    screen.blit(hist_title, (history_box.x + 8, history_box.y + 6))
+    screen.blit(hist_title, (history_box.x + 8, history_box.y + 5))
     
-    # Display recent moves
     log_font = pygame.font.SysFont("Arial", 11)
-    lines = []
-    i = 0
-    while i < len(gs.move_log):
-        move_num = (i // 2) + 1
-        w_move = gs.move_log[i]
-        b_move = gs.move_log[i+1] if (i + 1 < len(gs.move_log)) else ""
-        lines.append(f"{move_num}. {w_move}  {b_move}".strip())
-        i += 2
-        
-    y_line = history_box.y + 24
-    for line in lines[-5:]:
-        line_surf = log_font.render(line, True, (215, 220, 225))
-        screen.blit(line_surf, (history_box.x + 10, y_line))
-        y_line += 22
+    if not game_in_session:
+        hint1 = log_font.render("Match not started.", True, (150, 155, 165))
+        hint2 = log_font.render("Set options & click Start Game.", True, (120, 185, 140))
+        screen.blit(hint1, (history_box.x + 10, history_box.y + 28))
+        screen.blit(hint2, (history_box.x + 10, history_box.y + 50))
+    else:
+        lines = []
+        i = 0
+        while i < len(gs.move_log):
+            move_num = (i // 2) + 1
+            w_move = gs.move_log[i]
+            b_move = gs.move_log[i+1] if (i + 1 < len(gs.move_log)) else ""
+            lines.append(f"{move_num}. {w_move}  {b_move}".strip())
+            i += 2
+            
+        y_line = history_box.y + 24
+        for line in lines[-4:]:
+            line_surf = log_font.render(line, True, (215, 220, 225))
+            screen.blit(line_surf, (history_box.x + 10, y_line))
+            y_line += 21
 
-    # 5. Buttons: Undo, Flip Board, Side / Mode, Theme, Sound, Restart
+    # 5. Buttons Section
     btn_x = panel_rect.x + 10
     btn_w = config.PANEL_WIDTH - 20
-    b_y = hist_top + 160
-    
-    # Row 1: Side selection & Flip Board
     b1_w = (btn_w - 6) // 2
-    btn_side = pygame.Rect(btn_x, b_y, b1_w, 28)
-    pygame.draw.rect(screen, (60, 70, 85), btn_side, border_radius=4)
-    side_lbl = "Side: White" if player_color == 'white' else ("Side: Black" if player_color == 'black' else "Side: 2P")
-    s_txt = pygame.font.SysFont("Arial", 11, True).render(side_lbl, True, (240, 240, 240))
-    screen.blit(s_txt, s_txt.get_rect(center=btn_side.center))
-    buttons['side'] = btn_side
+    b_y = hist_top + 130
+    
+    if not game_in_session:
+        # SETUP MODE CONTROLS
+        # Primary Action: Start Game Button
+        btn_start = pygame.Rect(btn_x, b_y, btn_w, 32)
+        pygame.draw.rect(screen, (42, 145, 60), btn_start, border_radius=5)
+        pygame.draw.rect(screen, (80, 205, 100), btn_start, 1, border_radius=5)
+        st_txt = pygame.font.SysFont("Arial", 13, True).render("START GAME", True, (255, 255, 255))
+        screen.blit(st_txt, st_txt.get_rect(center=btn_start.center))
+        buttons['start'] = btn_start
+        b_y += 38
 
-    btn_flip = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
-    pygame.draw.rect(screen, (60, 70, 85), btn_flip, border_radius=4)
-    f_txt = pygame.font.SysFont("Arial", 11, True).render("Flip (F)", True, (240, 240, 240))
-    screen.blit(f_txt, f_txt.get_rect(center=btn_flip.center))
-    buttons['flip'] = btn_flip
+        # Row 1: Side selection & AI Toggle
+        btn_side = pygame.Rect(btn_x, b_y, b1_w, 28)
+        pygame.draw.rect(screen, (60, 70, 85), btn_side, border_radius=4)
+        side_lbl = "Side: White" if player_color == 'white' else ("Side: Black" if player_color == 'black' else "Side: 2P")
+        s_txt = pygame.font.SysFont("Arial", 11, True).render(side_lbl, True, (240, 240, 240))
+        screen.blit(s_txt, s_txt.get_rect(center=btn_side.center))
+        buttons['side'] = btn_side
 
-    b_y += 33
-    # Row 2: Undo Move & AI Toggle
-    btn_undo = pygame.Rect(btn_x, b_y, b1_w, 28)
-    pygame.draw.rect(screen, (75, 85, 100), btn_undo, border_radius=4)
-    u_txt = pygame.font.SysFont("Arial", 11, True).render("Undo (U)", True, (240, 240, 240))
-    screen.blit(u_txt, u_txt.get_rect(center=btn_undo.center))
-    buttons['undo'] = btn_undo
+        btn_ai = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
+        ai_col = (55, 115, 175) if ai_enabled else (70, 75, 85)
+        pygame.draw.rect(screen, ai_col, btn_ai, border_radius=4)
+        ai_txt = pygame.font.SysFont("Arial", 11, True).render(f"AI: {'ON' if ai_enabled else 'OFF'}", True, (240, 240, 240))
+        screen.blit(ai_txt, ai_txt.get_rect(center=btn_ai.center))
+        buttons['ai_toggle'] = btn_ai
+        b_y += 33
 
-    btn_ai = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
-    ai_col = (55, 115, 175) if ai_enabled else (70, 75, 85)
-    pygame.draw.rect(screen, ai_col, btn_ai, border_radius=4)
-    ai_txt = pygame.font.SysFont("Arial", 11, True).render(f"AI: {'ON' if ai_enabled else 'OFF'}", True, (240, 240, 240))
-    screen.blit(ai_txt, ai_txt.get_rect(center=btn_ai.center))
-    buttons['ai_toggle'] = btn_ai
+        # Row 2: Time Control & Undo Setting
+        btn_time = pygame.Rect(btn_x, b_y, b1_w, 28)
+        pygame.draw.rect(screen, (60, 70, 85), btn_time, border_radius=4)
+        tm_txt = pygame.font.SysFont("Arial", 11, True).render(f"Time: {time_preset_label}", True, (240, 240, 240))
+        screen.blit(tm_txt, tm_txt.get_rect(center=btn_time.center))
+        buttons['time'] = btn_time
 
-    b_y += 33
-    # Row 3: Theme & Sound
-    btn_theme = pygame.Rect(btn_x, b_y, b1_w, 28)
-    pygame.draw.rect(screen, (60, 70, 85), btn_theme, border_radius=4)
-    th_txt = pygame.font.SysFont("Arial", 11, True).render(f"Theme: {theme_name}", True, (240, 240, 240))
-    screen.blit(th_txt, th_txt.get_rect(center=btn_theme.center))
-    buttons['theme'] = btn_theme
+        btn_undo_toggle = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
+        u_col = (55, 115, 175) if undo_toggle_setting else (70, 75, 85)
+        pygame.draw.rect(screen, u_col, btn_undo_toggle, border_radius=4)
+        u_set_txt = pygame.font.SysFont("Arial", 11, True).render(f"Undo: {'ON' if undo_toggle_setting else 'OFF'}", True, (240, 240, 240))
+        screen.blit(u_set_txt, u_set_txt.get_rect(center=btn_undo_toggle.center))
+        buttons['undo_toggle'] = btn_undo_toggle
+        buttons['undo'] = btn_undo_toggle  # compatibility alias
+        b_y += 33
 
-    btn_sound = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
-    pygame.draw.rect(screen, (60, 70, 85), btn_sound, border_radius=4)
-    snd_txt = pygame.font.SysFont("Arial", 11, True).render(f"Audio: {'ON' if sound_on else 'OFF'}", True, (240, 240, 240))
-    screen.blit(snd_txt, snd_txt.get_rect(center=btn_sound.center))
-    buttons['sound'] = btn_sound
+        # Row 3: Theme & Sound
+        btn_theme = pygame.Rect(btn_x, b_y, b1_w, 28)
+        pygame.draw.rect(screen, (60, 70, 85), btn_theme, border_radius=4)
+        th_txt = pygame.font.SysFont("Arial", 11, True).render(f"Theme: {theme_name}", True, (240, 240, 240))
+        screen.blit(th_txt, th_txt.get_rect(center=btn_theme.center))
+        buttons['theme'] = btn_theme
 
-    b_y += 33
-    # Row 4: Restart Game
-    btn_restart = pygame.Rect(btn_x, b_y, btn_w, 28)
-    pygame.draw.rect(screen, (170, 60, 60), btn_restart, border_radius=4)
-    rst_txt = pygame.font.SysFont("Arial", 12, True).render("New / Restart Game", True, pygame.Color('white'))
-    screen.blit(rst_txt, rst_txt.get_rect(center=btn_restart.center))
-    buttons['restart'] = btn_restart
+        btn_sound = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
+        pygame.draw.rect(screen, (60, 70, 85), btn_sound, border_radius=4)
+        snd_txt = pygame.font.SysFont("Arial", 11, True).render(f"Audio: {'ON' if sound_on else 'OFF'}", True, (240, 240, 240))
+        screen.blit(snd_txt, snd_txt.get_rect(center=btn_sound.center))
+        buttons['sound'] = btn_sound
+        b_y += 33
+
+        # Row 4: Flip Board
+        btn_flip = pygame.Rect(btn_x, b_y, btn_w, 26)
+        pygame.draw.rect(screen, (50, 58, 70), btn_flip, border_radius=4)
+        f_txt = pygame.font.SysFont("Arial", 11, True).render("Flip Board (F)", True, (220, 225, 235))
+        screen.blit(f_txt, f_txt.get_rect(center=btn_flip.center))
+        buttons['flip'] = btn_flip
+
+    else:
+        # IN-SESSION CONTROLS (Settings Locked)
+        # Primary Action: Restart Game
+        btn_restart = pygame.Rect(btn_x, b_y, btn_w, 32)
+        pygame.draw.rect(screen, (170, 55, 55), btn_restart, border_radius=5)
+        pygame.draw.rect(screen, (220, 90, 90), btn_restart, 1, border_radius=5)
+        rst_txt = pygame.font.SysFont("Arial", 12, True).render("Restart Game", True, (255, 255, 255))
+        screen.blit(rst_txt, rst_txt.get_rect(center=btn_restart.center))
+        buttons['restart'] = btn_restart
+        b_y += 38
+
+        # Row 1: Undo & Flip Board
+        btn_undo = pygame.Rect(btn_x, b_y, b1_w, 28)
+        if gs.undo_enabled:
+            pygame.draw.rect(screen, (75, 85, 100), btn_undo, border_radius=4)
+            u_txt = pygame.font.SysFont("Arial", 11, True).render("Undo (U)", True, (240, 240, 240))
+        else:
+            pygame.draw.rect(screen, (45, 48, 55), btn_undo, border_radius=4)
+            pygame.draw.rect(screen, (60, 65, 75), btn_undo, 1, border_radius=4)
+            u_txt = pygame.font.SysFont("Arial", 11).render("Undo: OFF", True, (120, 125, 135))
+        screen.blit(u_txt, u_txt.get_rect(center=btn_undo.center))
+        buttons['undo'] = btn_undo
+
+        btn_flip = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
+        pygame.draw.rect(screen, (60, 70, 85), btn_flip, border_radius=4)
+        f_txt = pygame.font.SysFont("Arial", 11, True).render("Flip (F)", True, (240, 240, 240))
+        screen.blit(f_txt, f_txt.get_rect(center=btn_flip.center))
+        buttons['flip'] = btn_flip
+        b_y += 33
+
+        # Row 2: Theme & Sound (Cosmetics can be changed anytime)
+        btn_theme = pygame.Rect(btn_x, b_y, b1_w, 28)
+        pygame.draw.rect(screen, (60, 70, 85), btn_theme, border_radius=4)
+        th_txt = pygame.font.SysFont("Arial", 11, True).render(f"Theme: {theme_name}", True, (240, 240, 240))
+        screen.blit(th_txt, th_txt.get_rect(center=btn_theme.center))
+        buttons['theme'] = btn_theme
+
+        btn_sound = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
+        pygame.draw.rect(screen, (60, 70, 85), btn_sound, border_radius=4)
+        snd_txt = pygame.font.SysFont("Arial", 11, True).render(f"Audio: {'ON' if sound_on else 'OFF'}", True, (240, 240, 240))
+        screen.blit(snd_txt, snd_txt.get_rect(center=btn_sound.center))
+        buttons['sound'] = btn_sound
+        b_y += 33
+
+        # Row 3: Locked Settings Display
+        btn_side_locked = pygame.Rect(btn_x, b_y, b1_w, 28)
+        pygame.draw.rect(screen, (40, 44, 52), btn_side_locked, border_radius=4)
+        pygame.draw.rect(screen, (60, 65, 75), btn_side_locked, 1, border_radius=4)
+        side_disp = "White" if player_color == 'white' else ("Black" if player_color == 'black' else "2P")
+        s_txt = pygame.font.SysFont("Arial", 10).render(f"{side_disp} [Locked]", True, (135, 140, 150))
+        screen.blit(s_txt, s_txt.get_rect(center=btn_side_locked.center))
+        buttons['side'] = btn_side_locked
+
+        btn_time_locked = pygame.Rect(btn_x + b1_w + 6, b_y, b1_w, 28)
+        pygame.draw.rect(screen, (40, 44, 52), btn_time_locked, border_radius=4)
+        pygame.draw.rect(screen, (60, 65, 75), btn_time_locked, 1, border_radius=4)
+        t_txt = pygame.font.SysFont("Arial", 10).render(f"{time_preset_label} [Locked]", True, (135, 140, 150))
+        screen.blit(t_txt, t_txt.get_rect(center=btn_time_locked.center))
+        buttons['time'] = btn_time_locked
 
     return buttons
 
@@ -323,6 +410,14 @@ def main() -> None:
     current_theme = config.DEFAULT_THEME
     review_idx: int | None = None # None means live game
 
+    # Session & Setup Configuration
+    game_in_session = False
+    time_presets = [('None', 0), ('10 min', 600), ('5 min', 300), ('3 min', 180)]
+    time_preset_idx = 0
+    undo_toggle_setting = True
+    gs.undo_enabled = True
+    gs.set_time_control(time_presets[time_preset_idx][1])
+
     sq_selected = ()
     player_clicks = []
     valid_moves_for_sq = []
@@ -331,13 +426,13 @@ def main() -> None:
     while True:
         dt = clock.tick(config.MAX_FPS) / 1000.0
 
-        # Update chess clocks
-        if gs.update_clock(dt):
+        # Update chess clocks only while match is in session
+        if game_in_session and gs.update_clock(dt):
             sounds.play_game_over()
 
-        # AI Turn trigger
+        # AI Turn trigger (only while match is in session and not game over)
         ai_color = "black" if player_color == "white" else ("white" if player_color == "black" else None)
-        if not gs.game_over and AI_ENABLED and ai_color and gs.turn == ai_color and not gs.promotion_pending:
+        if game_in_session and not gs.game_over and AI_ENABLED and ai_color and gs.turn == ai_color and not gs.promotion_pending:
             prev_board_piece_count = sum(1 for p in gs.pieces_arr if p.alive)
             moved = gs.make_ai_move(ai_depth)
             if moved:
@@ -362,24 +457,26 @@ def main() -> None:
                 if e.key == pygame.K_f:
                     flipped = not flipped
                 elif e.key == pygame.K_u:
-                    # Undo move
-                    gs.undo_move(against_ai=(player_color in ['white', 'black'] and AI_ENABLED))
-                    sq_selected = ()
-                    player_clicks = []
-                    valid_moves_for_sq = []
+                    # Undo move only if game is in session and undo is enabled
+                    if game_in_session and gs.undo_enabled:
+                        gs.undo_move(against_ai=(player_color in ['white', 'black'] and AI_ENABLED))
+                        sq_selected = ()
+                        player_clicks = []
+                        valid_moves_for_sq = []
                 elif e.key == pygame.K_m:
                     sounds.toggle_sound()
                 elif e.key == pygame.K_t:
                     themes_list = list(config.THEMES.keys())
                     current_theme = themes_list[(themes_list.index(current_theme) + 1) % len(themes_list)]
                 elif e.key == pygame.K_LEFT:
-                    # Step back in review
-                    if review_idx is None:
-                        review_idx = max(0, len(gs.fen_history) - 2)
-                    else:
-                        review_idx = max(0, review_idx - 1)
+                    # Step back in review (only when game in session)
+                    if game_in_session:
+                        if review_idx is None:
+                            review_idx = max(0, len(gs.fen_history) - 2)
+                        else:
+                            review_idx = max(0, review_idx - 1)
                 elif e.key == pygame.K_RIGHT:
-                    if review_idx is not None:
+                    if game_in_session and review_idx is not None:
                         review_idx += 1
                         if review_idx >= len(gs.fen_history) - 1:
                             review_idx = None # return to live
@@ -388,71 +485,130 @@ def main() -> None:
 
             elif e.type == pygame.MOUSEBUTTONDOWN:
                 location = pygame.mouse.get_pos()
+                time_preset_label = time_presets[time_preset_idx][0]
                 
                 # Side Panel Button clicks
                 panel_rect = pygame.Rect(config.MARGIN_LEFT + config.DIMENSION * config.SQ_SIZE, 0, config.PANEL_WIDTH, config.HEIGHT)
                 if location[0] >= panel_rect.x:
                     buttons = draw_panel(
                         screen, gs, ui_font, AI_ENABLED, ai_depth,
-                        player_color, current_theme, sounds.sound_enabled, flipped, review_idx
+                        player_color, current_theme, sounds.sound_enabled, flipped, review_idx,
+                        game_in_session, time_preset_label, undo_toggle_setting
                     )
-                    if buttons['flip'].collidepoint(location):
-                        flipped = not flipped
-                    elif buttons['undo'].collidepoint(location):
-                        gs.undo_move(against_ai=(player_color in ['white', 'black'] and AI_ENABLED))
-                        sq_selected = ()
-                        player_clicks = []
-                        valid_moves_for_sq = []
-                    elif buttons['ai_toggle'].collidepoint(location):
-                        AI_ENABLED = not AI_ENABLED
-                    elif buttons['theme'].collidepoint(location):
-                        themes_list = list(config.THEMES.keys())
-                        current_theme = themes_list[(themes_list.index(current_theme) + 1) % len(themes_list)]
-                    elif buttons['sound'].collidepoint(location):
-                        sounds.toggle_sound()
-                    elif buttons['side'].collidepoint(location):
-                        # Cycle side: White -> Black -> 2Player -> White
-                        if player_color == 'white':
-                            player_color = 'black'
-                            flipped = True
-                            AI_ENABLED = True
-                        elif player_color == 'black':
-                            player_color = '2player'
-                            flipped = False
-                            AI_ENABLED = False
-                        else:
-                            player_color = 'white'
-                            flipped = False
-                            AI_ENABLED = True
-                        gs.reset()
-                        review_idx = None
-                        sq_selected = ()
-                        player_clicks = []
-                        valid_moves_for_sq = []
-                    elif buttons['restart'].collidepoint(location):
-                        gs.reset()
-                        review_idx = None
-                        sq_selected = ()
-                        player_clicks = []
-                        valid_moves_for_sq = []
+                    
+                    if not game_in_session:
+                        # SETUP MODE: Configure match
+                        if 'start' in buttons and buttons['start'].collidepoint(location):
+                            game_in_session = True
+                            gs.reset()
+                            gs.set_time_control(time_presets[time_preset_idx][1])
+                            gs.undo_enabled = undo_toggle_setting
+                            review_idx = None
+                            sq_selected = ()
+                            player_clicks = []
+                            valid_moves_for_sq = []
+                            
+                            # If playing as Black vs AI, AI plays White's first move
+                            if player_color == 'black' and AI_ENABLED:
+                                moved = gs.make_ai_move(ai_depth)
+                                if moved:
+                                    sounds.play_move()
+                                    
+                        elif 'side' in buttons and buttons['side'].collidepoint(location):
+                            # Cycle side: White -> Black -> 2Player -> White
+                            if player_color == 'white':
+                                player_color = 'black'
+                                flipped = True
+                                AI_ENABLED = True
+                            elif player_color == 'black':
+                                player_color = '2player'
+                                flipped = False
+                                AI_ENABLED = False
+                            else:
+                                player_color = 'white'
+                                flipped = False
+                                AI_ENABLED = True
+                            gs.reset()
+                            gs.set_time_control(time_presets[time_preset_idx][1])
+                            gs.undo_enabled = undo_toggle_setting
+                            review_idx = None
+                            sq_selected = ()
+                            player_clicks = []
+                            valid_moves_for_sq = []
+                            
+                        elif 'time' in buttons and buttons['time'].collidepoint(location):
+                            time_preset_idx = (time_preset_idx + 1) % len(time_presets)
+                            gs.set_time_control(time_presets[time_preset_idx][1])
+                            
+                        elif 'undo_toggle' in buttons and buttons['undo_toggle'].collidepoint(location):
+                            undo_toggle_setting = not undo_toggle_setting
+                            gs.undo_enabled = undo_toggle_setting
+                            
+                        elif 'ai_toggle' in buttons and buttons['ai_toggle'].collidepoint(location):
+                            AI_ENABLED = not AI_ENABLED
+                            
+                        elif 'flip' in buttons and buttons['flip'].collidepoint(location):
+                            flipped = not flipped
+                            
+                        elif 'theme' in buttons and buttons['theme'].collidepoint(location):
+                            themes_list = list(config.THEMES.keys())
+                            current_theme = themes_list[(themes_list.index(current_theme) + 1) % len(themes_list)]
+                            
+                        elif 'sound' in buttons and buttons['sound'].collidepoint(location):
+                            sounds.toggle_sound()
+                            
+                    else:
+                        # IN-SESSION: Settings are locked midgame
+                        if 'restart' in buttons and buttons['restart'].collidepoint(location):
+                            game_in_session = False
+                            gs.reset()
+                            gs.set_time_control(time_presets[time_preset_idx][1])
+                            gs.undo_enabled = undo_toggle_setting
+                            review_idx = None
+                            sq_selected = ()
+                            player_clicks = []
+                            valid_moves_for_sq = []
+                            
+                        elif 'undo' in buttons and buttons['undo'].collidepoint(location):
+                            if gs.undo_enabled:
+                                gs.undo_move(against_ai=(player_color in ['white', 'black'] and AI_ENABLED))
+                                sq_selected = ()
+                                player_clicks = []
+                                valid_moves_for_sq = []
+                                
+                        elif 'flip' in buttons and buttons['flip'].collidepoint(location):
+                            flipped = not flipped
+                            
+                        elif 'theme' in buttons and buttons['theme'].collidepoint(location):
+                            themes_list = list(config.THEMES.keys())
+                            current_theme = themes_list[(themes_list.index(current_theme) + 1) % len(themes_list)]
+                            
+                        elif 'sound' in buttons and buttons['sound'].collidepoint(location):
+                            sounds.toggle_sound()
                     continue
                     
                 if gs.game_over and btn_game_over_restart.collidepoint(location):
+                    game_in_session = False
                     gs.reset()
+                    gs.set_time_control(time_presets[time_preset_idx][1])
+                    gs.undo_enabled = undo_toggle_setting
                     review_idx = None
                     sq_selected = ()
                     player_clicks = []
                     valid_moves_for_sq = []
                     continue
                     
-                # Block board interaction if AI's turn or game over
+                # Block board interaction if game not started, AI's turn, game over, or reviewing
+                if not game_in_session or gs.game_over or review_idx is not None:
+                    continue
+
                 is_player_turn = True
                 if player_color == 'white' and gs.turn != 'white':
                     is_player_turn = False
                 elif player_color == 'black' and gs.turn != 'black':
                     is_player_turn = False
                     
-                if gs.game_over or not is_player_turn or review_idx is not None:
+                if not is_player_turn:
                     continue
                     
                 # Promotion Modal clicks
@@ -541,9 +697,11 @@ def main() -> None:
         draw_pieces(screen, display_board, flipped)
         
         # Draw Side Panel
+        time_preset_label = time_presets[time_preset_idx][0]
         draw_panel(
             screen, gs, ui_font, AI_ENABLED, ai_depth,
-            player_color, current_theme, sounds.sound_enabled, flipped, review_idx
+            player_color, current_theme, sounds.sound_enabled, flipped, review_idx,
+            game_in_session, time_preset_label, undo_toggle_setting
         )
         
         # Promotion Modal
